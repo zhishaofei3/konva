@@ -232,12 +232,10 @@
     getContent: function() {
       return this.content;
     },
-    toDataURL: function(config) {
+    _toKonvaCanvas: function(config) {
       config = config || {};
 
-      var mimeType = config.mimeType || null,
-        quality = config.quality || null,
-        x = config.x || 0,
+      var x = config.x || 0,
         y = config.y || 0,
         canvas = new Konva.SceneCanvas({
           width: config.width || this.getWidth(),
@@ -252,24 +250,19 @@
       }
 
       layers.each(function(layer) {
-        var width = layer.getCanvas().getWidth();
-        var height = layer.getCanvas().getHeight();
-        var ratio = layer.getCanvas().getPixelRatio();
+        if (!layer.isVisible()) {
+          return;
+        }
+        var layerCanvas = layer._toKonvaCanvas(config);
         _context.drawImage(
-          layer.getCanvas()._canvas,
-          0,
-          0,
-          width / ratio,
-          height / ratio
+          layerCanvas._canvas,
+          x,
+          y,
+          layerCanvas.getWidth() / layerCanvas.getPixelRatio(),
+          layerCanvas.getHeight() / layerCanvas.getPixelRatio()
         );
       });
-      var src = canvas.toDataURL(mimeType, quality);
-
-      if (config.callback) {
-        config.callback(src);
-      }
-
-      return src;
+      return canvas;
     },
     /**
      * converts stage into an image.
@@ -515,9 +508,12 @@
 
       // always call preventDefault for desktop events because some browsers
       // try to drag and drop the canvas element
-      if (evt.cancelable) {
-        evt.preventDefault();
-      }
+      // TODO: if we preventDefault() it will cancel event detection outside of window
+      // but we need it for better drag&drop
+      // can we disable native drag&drop somehow differently?
+      // if (evt.cancelable) {
+      //   evt.preventDefault();
+      // }
     },
     _mouseup: function(evt) {
       // workaround for mobile IE to force touch event when unhandled pointer event elevates into a mouse event

@@ -1046,7 +1046,22 @@ suite('Stage', function() {
     assert.equal(dblicks, 1, 'first dbclick registered');
   });
 
-  test('toDataURL in sync way', function() {
+  test('toCanvas in sync way', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    var circle = new Konva.Circle({
+      x: stage.width() / 2,
+      y: stage.height() / 2,
+      fill: 'black',
+      radius: 50
+    });
+    layer.add(circle);
+    stage.add(layer);
+
+    compareCanvases(stage.toCanvas(), layer.toCanvas(), 200);
+  });
+
+  test('toDataURL with hidden layer', function() {
     var stage = addStage();
     var layer = new Konva.Layer();
     var circle = new Konva.Circle({
@@ -1057,7 +1072,40 @@ suite('Stage', function() {
     });
     layer.add(circle);
     stage.add(layer);
-    assert.equal(stage.toDataURL(), layer.toDataURL());
+
+    var stageDataUrl = stage.toDataURL();
+    layer.visible(false);
+    assert.equal(stage.toDataURL() === stageDataUrl, false);
+  });
+
+  test('toDataURL works as toCanvas', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    var circle = new Konva.Circle({
+      x: stage.width() / 2,
+      y: stage.height() / 2,
+      fill: 'red',
+      radius: 50
+    });
+    layer.add(circle);
+    stage.add(layer);
+
+    assert.equal(stage.toDataURL(), stage.toCanvas().toDataURL());
+  });
+
+  test('toDataURL should no relate on stage size', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    var circle = new Konva.Circle({
+      x: stage.width() / 2,
+      y: stage.height() / 2,
+      fill: 'red',
+      radius: stage.height() * 0.6
+    });
+    layer.add(circle);
+    stage.add(layer);
+
+    compareCanvases(stage.toCanvas(circle.getClientRect()), circle.toCanvas());
   });
 
   test('toCanvas with large size', function() {
@@ -1136,4 +1184,15 @@ suite('Stage', function() {
     };
     image.src = url;
   });
+
+  // test.only('Warn when styles or stage are applied', function() {
+  //   var stage = addStage();
+  //   // var layer = new Konva.Layer();
+  //   // stage.add(layer);
+  //   var container = stage.content;
+  //   console.log(
+  //     getComputedStyle(container).width,
+  //     getComputedStyle(container).height
+  //   );
+  // });
 });

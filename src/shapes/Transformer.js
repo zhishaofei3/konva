@@ -3,7 +3,15 @@
 
   var ATTR_CHANGE_LIST = [
     'resizeEnabledChange',
-    'rotateHandlerOffsetChange'
+    'rotateAnchorOffsetChange',
+    'enabledAnchorsChange',
+    'anchorSizeChange',
+    'borderEnabledChange',
+    'borderStrokeChange',
+    'borderStrokeWidthChange',
+    'anchorStrokeChange',
+    'anchorStrokeWidthChange',
+    'anchorFillChange'
   ].join(' ');
 
   var NODE_RECT = 'nodeRect';
@@ -46,12 +54,17 @@
     'bottom-right': 135
   };
 
-  function getCursor(anchorName, rad) {
+  function getCursor(anchorName, rad, isMirrored) {
     if (anchorName === 'rotater') {
       return 'crosshair';
     }
 
     rad += Konva.Util._degToRad(ANGLES[anchorName] || 0);
+    // If we are mirrored, we need to mirror the angle (this is not the same as
+    // rotate).
+    if (isMirrored) {
+      rad *= -1;
+    }
     var angle = (Konva.Util._radToDeg(rad) % 360 + 360) % 360;
 
     if (
@@ -93,23 +106,32 @@
 
   /**
    * Transformer constructor.  Transformer is a special type of group that allow you transform Konva
-   * primitives and shapes.
+   * primitives and shapes. Transforming tool is not changing `width` and `height` properties of nodes
+   * when you resize them. Instead it changes `scaleX` and `scaleY` properties.
    * @constructor
    * @memberof Konva
    * @param {Object} config
    * @param {Boolean} [config.resizeEnabled] Default is true
    * @param {Boolean} [config.rotateEnabled] Default is true
    * @param {Array} [config.rotationSnaps] Array of angles for rotation snaps. Default is []
-   * @param {Number} [config.rotateHandlerOffset] Default is 50
+   * @param {Number} [config.rotateAnchorOffset] Default is 50
    * @param {Number} [config.padding] Default is 0
-   * @param {Number} [config.lineEnabled] Should we draw border? Default is true
+   * @param {Boolean} [config.borderEnabled] Should we draw border? Default is true
+   * @param {String} [config.borderStroke] Border stroke color
+   * @param {Number} [config.borderStrokeWidth] Border stroke size
+   * @param {Array} [config.borderDash] Array for border dash.
+   * @param {String} [config.anchorFill] Anchor fill color
+   * @param {String} [config.anchorStroke] Anchor stroke color
+   * @param {Number} [config.anchorStrokeWidth] Anchor stroke size
+   * @param {Number} [config.anchorSize] Default is 10
    * @param {Boolean} [config.keepRatio] Should we keep ratio when we are moving edges? Default is true
-   * @param {Array} [config.enabledHandlers] Array of names of enabled handles
+   * @param {Array} [config.enabledAnchors] Array of names of enabled handles
+   * @param {Function} [config.boundBoxFunc] Bounding box function
    * @example
    * var transformer = new Konva.Transformer({
    *   node: rectangle,
-   *   rotateHandlerOffset: 60,
-   *   enabledHandlers: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+   *   rotateAnchorOffset: 60,
+   *   enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
    * });
    * layer.add(transformer);
    */
@@ -118,7 +140,7 @@
     this.____init(config);
   };
 
-  var RESIZERS_NAMES = [
+  var ANCHORS_NAMES = [
     'top-left',
     'top-center',
     'top-right',
@@ -128,8 +150,6 @@
     'bottom-center',
     'bottom-right'
   ];
-
-  var warningShowed = false;
 
   Konva.Transformer.prototype = {
     _centroid: false,
@@ -147,36 +167,37 @@
       // update transformer data for certain attr changes
       this.on(ATTR_CHANGE_LIST, this.update);
 
-      if (!warningShowed) {
-        Konva.Util.warn(
-          'Konva.Transformer is currently experimental and may have bugs. Please report any issues to GitHub repo.'
-        );
-        warningShowed = true;
-      }
-
       if (this.getNode()) {
         this.update();
       }
     },
 
-    attachTo: function(node) {
-      this.setNode(node);
-    },
-
     /**
-     * attach transformer to a Konva.Node. Transformer will adapt it its size and listed events
+     * alias to `setNode`
      * @method
      * @memberof Konva.Transformer.prototype
      * @returns {Konva.Transformer}
      * @example
      * transformer.attachTo(shape);
      */
+    attachTo: function(node) {
+      this.setNode(node);
+    },
+
+    /**
+     * attach transformer to a Konva.Node. Transformer will adapt to its size and listen its events
+     * @method
+     * @memberof Konva.Transformer.prototype
+     * @returns {Konva.Transformer}
+     * @example
+     * transformer.setNode(shape);
+     */
     setNode: function(node) {
       if (this._node) {
         this.detach();
       }
       this._node = node;
-      this._clearCache(NODE_RECT);
+      this._resetTransformCache();
 
       node.on(TRANSFORM_CHANGE_STR, this._resetTransformCache.bind(this));
       node.on(
@@ -275,7 +296,7 @@
     _createElements: function() {
       this._createBack();
 
-      RESIZERS_NAMES.forEach(
+      ANCHORS_NAMES.forEach(
         function(name) {
           this._createAnchor(name);
         }.bind(this)
@@ -289,16 +310,22 @@
         stroke: 'rgb(0, 161, 255)',
         fill: 'white',
         strokeWidth: 1,
-        name: name,
-        width: 10,
-        height: 10,
-        offsetX: 5,
-        offsetY: 5,
-        dragDistance: 0
+        name: name + ' _anchor',
+        dragDistance: 0,
+        draggable: true
       });
       var self = this;
       anchor.on('mousedown touchstart', function(e) {
         self._handleMouseDown(e);
+      });
+      anchor.on('dragstart', function(e) {
+        e.cancelBubble = true;
+      });
+      anchor.on('dragmove', function(e) {
+        e.cancelBubble = true;
+      });
+      anchor.on('dragend', function(e) {
+        e.cancelBubble = true;
       });
 
       // add hover styling
@@ -306,27 +333,12 @@
         var layer = this.getLayer();
         var tr = this.getParent();
 
-        // TODO: I guess there are some ways to simplify that calculations
-        // the basic idea is to find "angle" of handler
         var rad = Konva.getAngle(tr.rotation());
 
-        // var cdx = tr.getWidth() / 2;
-        // var cdy = tr.getHeight() / 2;
-
-        // var parentPos = tr.getAbsolutePosition(tr.getParent());
-        // var center = {
-        //   x: parentPos.x + (cdx * Math.cos(rad) + cdy * Math.sin(-rad)),
-        //   y: parentPos.y + (cdy * Math.cos(rad) + cdx * Math.sin(rad))
-        // };
-
-        // var pos = this.getAbsolutePosition(tr.getParent());
-
-        // var dx = -pos.x + center.x;
-        // var dy = -pos.y + center.y;
-
-        // var angle = -Math.atan2(-dy, dx) - Math.PI / 2;
-
-        var cursor = getCursor(name, rad);
+        var scale = tr.getNode().getAbsoluteScale();
+        // If scale.y < 0 xor scale.x < 0 we need to flip (not rotate).
+        var isMirrored = scale.y * scale.x < 0;
+        var cursor = getCursor(name, rad, isMirrored);
         anchor.getStage().content.style.cursor = cursor;
         layer.batchDraw();
       });
@@ -343,7 +355,6 @@
 
     _createBack: function() {
       var back = new Konva.Shape({
-        stroke: 'rgb(0, 161, 255)',
         name: 'back',
         width: 0,
         height: 0,
@@ -362,7 +373,7 @@
           if (tr.rotateEnabled()) {
             ctx.lineTo(
               this.width() / 2,
-              -tr.rotateHandlerOffset() * Konva.Util._sign(this.height())
+              -tr.rotateAnchorOffset() * Konva.Util._sign(this.height())
             );
           }
 
@@ -373,7 +384,7 @@
     },
 
     _handleMouseDown: function(e) {
-      this.movingResizer = e.target.name();
+      this.movingResizer = e.target.name().split(' ')[0];
 
       // var node = this.getNode();
       var attrs = this._getNodeRect();
@@ -390,8 +401,8 @@
 
       this._transforming = true;
 
-      this.fire('transformstart');
-      this.getNode().fire('transformstart');
+      this._fire('transformstart', { evt: e });
+      this.getNode()._fire('transformstart', { evt: e });
     },
 
     _handleMouseMove: function(e) {
@@ -523,27 +534,30 @@
         var dx = padding;
         var dy = padding;
 
-        this._fitNodeInto({
-          rotation: Konva.angleDeg
-            ? newRotation
-            : Konva.Util._degToRad(newRotation),
-          x:
-            attrs.x +
-            (attrs.width / 2 + padding) *
-              (Math.cos(alpha) - Math.cos(newAlpha)) +
-            (attrs.height / 2 + padding) *
-              (Math.sin(-alpha) - Math.sin(-newAlpha)) -
-            (dx * Math.cos(rot) + dy * Math.sin(-rot)),
-          y:
-            attrs.y +
-            (attrs.height / 2 + padding) *
-              (Math.cos(alpha) - Math.cos(newAlpha)) +
-            (attrs.width / 2 + padding) *
-              (Math.sin(alpha) - Math.sin(newAlpha)) -
-            (dy * Math.cos(rot) + dx * Math.sin(rot)),
-          width: attrs.width + padding * 2,
-          height: attrs.height + padding * 2
-        });
+        this._fitNodeInto(
+          {
+            rotation: Konva.angleDeg
+              ? newRotation
+              : Konva.Util._degToRad(newRotation),
+            x:
+              attrs.x +
+              (attrs.width / 2 + padding) *
+                (Math.cos(alpha) - Math.cos(newAlpha)) +
+              (attrs.height / 2 + padding) *
+                (Math.sin(-alpha) - Math.sin(-newAlpha)) -
+              (dx * Math.cos(rot) + dy * Math.sin(-rot)),
+            y:
+              attrs.y +
+              (attrs.height / 2 + padding) *
+                (Math.cos(alpha) - Math.cos(newAlpha)) +
+              (attrs.width / 2 + padding) *
+                (Math.sin(alpha) - Math.sin(newAlpha)) -
+              (dy * Math.cos(rot) + dx * Math.sin(rot)),
+            width: attrs.width + padding * 2,
+            height: attrs.height + padding * 2
+          },
+          e
+        );
       } else {
         console.error(
           new Error(
@@ -561,6 +575,28 @@
         this.getParent()
       );
 
+      if (e.altKey) {
+        var topLeft = this.findOne('.top-left');
+        var bottomRight = this.findOne('.bottom-right');
+        var topOffsetX = topLeft.x();
+        var topOffsetY = topLeft.y();
+
+        var bottomOffsetX = this.getWidth() - bottomRight.x();
+        var bottomOffsetY = this.getHeight() - bottomRight.y();
+
+        bottomRight.move({
+          x: -topOffsetX,
+          y: -topOffsetY
+        });
+
+        topLeft.move({
+          x: bottomOffsetX,
+          y: bottomOffsetY
+        });
+
+        absPos = topLeft.getAbsolutePosition(this.getParent());
+      }
+
       x = absPos.x;
       y = absPos.y;
       var width =
@@ -569,31 +605,37 @@
       var height =
         this.findOne('.bottom-right').y() - this.findOne('.top-left').y();
 
-      this._fitNodeInto({
-        x: x + this.offsetX(),
-        y: y + this.offsetY(),
-        width: width,
-        height: height
-      });
+      this._fitNodeInto(
+        {
+          x: x + this.offsetX(),
+          y: y + this.offsetY(),
+          width: width,
+          height: height
+        },
+        e
+      );
     },
 
-    _handleMouseUp: function() {
-      this._removeEvents();
+    _handleMouseUp: function(e) {
+      this._removeEvents(e);
     },
 
-    _removeEvents: function() {
+    _removeEvents: function(e) {
       if (this._transforming) {
         this._transforming = false;
         window.removeEventListener('mousemove', this._handleMouseMove);
         window.removeEventListener('touchmove', this._handleMouseMove);
         window.removeEventListener('mouseup', this._handleMouseUp, true);
         window.removeEventListener('touchend', this._handleMouseUp, true);
-        this.fire('transformend');
-        this.getNode().fire('transformend');
+        this._fire('transformend', { evt: e });
+        var node = this.getNode();
+        if (node) {
+          node.fire('transformend', { evt: e });
+        }
       }
     },
 
-    _fitNodeInto: function(newAttrs) {
+    _fitNodeInto: function(newAttrs, evt) {
       // waring! in this attrs padding may be included
       var boundBoxFunc = this.getBoundBoxFunc();
       if (boundBoxFunc) {
@@ -622,8 +664,8 @@
       });
       this._settings = false;
 
-      this.fire('transform');
-      this.getNode().fire('transform');
+      this._fire('transform', { evt: evt });
+      this.getNode()._fire('transform', { evt: evt });
       this.update();
       this.getLayer().batchDraw();
     },
@@ -639,64 +681,99 @@
     },
     update: function() {
       var attrs = this._getNodeRect();
+      var node = this.getNode();
+      var scale = { x: 1, y: 1 };
+      if (node && node.getParent()) {
+        scale = node.getParent().getAbsoluteScale();
+      }
+      var invertedScale = {
+        x: 1 / scale.x,
+        y: 1 / scale.y
+      };
       var width = attrs.width;
       var height = attrs.height;
 
-      var enabledHandlers = this.enabledHandlers();
+      var enabledAnchors = this.enabledAnchors();
       var resizeEnabled = this.resizeEnabled();
       var padding = this.getPadding();
+
+      var anchorSize = this.getAnchorSize();
+      this.find('._anchor').setAttrs({
+        width: anchorSize,
+        height: anchorSize,
+        offsetX: anchorSize / 2,
+        offsetY: anchorSize / 2,
+        stroke: this.getAnchorStroke(),
+        strokeWidth: this.getAnchorStrokeWidth(),
+        fill: this.getAnchorFill()
+      });
 
       this.findOne('.top-left').setAttrs({
         x: -padding,
         y: -padding,
-        visible: resizeEnabled && enabledHandlers.indexOf('top-left') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('top-left') >= 0
       });
       this.findOne('.top-center').setAttrs({
         x: width / 2,
         y: -padding,
-        visible: resizeEnabled && enabledHandlers.indexOf('top-center') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('top-center') >= 0
       });
       this.findOne('.top-right').setAttrs({
         x: width + padding,
         y: -padding,
-        visible: resizeEnabled && enabledHandlers.indexOf('top-right') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('top-right') >= 0
       });
       this.findOne('.middle-left').setAttrs({
         x: -padding,
         y: height / 2,
-        visible: resizeEnabled && enabledHandlers.indexOf('middle-left') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('middle-left') >= 0
       });
       this.findOne('.middle-right').setAttrs({
         x: width + padding,
         y: height / 2,
-        visible: resizeEnabled && enabledHandlers.indexOf('middle-right') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('middle-right') >= 0
       });
       this.findOne('.bottom-left').setAttrs({
         x: -padding,
         y: height + padding,
-        visible: resizeEnabled && enabledHandlers.indexOf('bottom-left') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('bottom-left') >= 0
       });
       this.findOne('.bottom-center').setAttrs({
         x: width / 2,
         y: height + padding,
-        visible: resizeEnabled && enabledHandlers.indexOf('bottom-center') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('bottom-center') >= 0
       });
       this.findOne('.bottom-right').setAttrs({
         x: width + padding,
         y: height + padding,
-        visible: resizeEnabled && enabledHandlers.indexOf('bottom-right') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('bottom-right') >= 0
       });
 
+      var scaledRotateAnchorOffset =
+        -this.rotateAnchorOffset() * Math.abs(invertedScale.y);
       this.findOne('.rotater').setAttrs({
         x: width / 2,
-        y: -this.rotateHandlerOffset() * Konva.Util._sign(height),
+        y: scaledRotateAnchorOffset * Konva.Util._sign(height),
+        scale: invertedScale,
         visible: this.rotateEnabled()
       });
 
       this.findOne('.back').setAttrs({
-        width: width,
-        height: height,
-        visible: this.lineEnabled()
+        width: width * scale.x,
+        height: height * scale.y,
+        scale: invertedScale,
+        visible: this.borderEnabled(),
+        stroke: this.getBorderStroke(),
+        strokeWidth: this.getBorderStrokeWidth(),
+        dash: this.getBorderDash()
       });
     },
     /**
@@ -717,6 +794,10 @@
     stopTransform: function() {
       if (this._transforming) {
         this._removeEvents();
+        var resizerNode = this.findOne('.' + this.movingResizer);
+        if (resizerNode) {
+          resizerNode.stopDrag();
+        }
       }
     },
     destroy: function() {
@@ -734,16 +815,16 @@
 
   function validateResizers(val) {
     if (!(val instanceof Array)) {
-      Konva.Util.warn('enabledHandlers value should be an array');
+      Konva.Util.warn('enabledAnchors value should be an array');
     }
     if (val instanceof Array) {
       val.forEach(function(name) {
-        if (RESIZERS_NAMES.indexOf(name) === -1) {
+        if (ANCHORS_NAMES.indexOf(name) === -1) {
           Konva.Util.warn(
-            'Unknown resizer name: ' +
+            'Unknown anchor name: ' +
               name +
               '. Available names are: ' +
-              RESIZERS_NAMES.join(', ')
+              ANCHORS_NAMES.join(', ')
           );
         }
       });
@@ -753,22 +834,22 @@
 
   /**
    * get/set enabled handlers
-   * @name enabledHandlers
+   * @name enabledAnchors
    * @method
    * @memberof Konva.Transformer.prototype
    * @param {Array} array
    * @returns {Array}
    * @example
    * // get list of handlers
-   * var enabledHandlers = shape.enabledHandlers();
+   * var enabledAnchors = transformer.enabledAnchors();
    *
    * // set handlers
-   * shape.enabledHandlers(['top-left', 'top-center', 'top-right', 'middle-right', 'middle-left', 'bottom-left', 'bottom-center', 'bottom-right']);
+   * transformer.enabledAnchors(['top-left', 'top-center', 'top-right', 'middle-right', 'middle-left', 'bottom-left', 'bottom-center', 'bottom-right']);
    */
   Konva.Factory.addGetterSetter(
     Konva.Transformer,
-    'enabledHandlers',
-    RESIZERS_NAMES,
+    'enabledAnchors',
+    ANCHORS_NAMES,
     validateResizers
   );
 
@@ -781,26 +862,46 @@
    * @returns {Array}
    * @example
    * // get
-   * var resizeEnabled = shape.resizeEnabled();
+   * var resizeEnabled = transformer.resizeEnabled();
    *
    * // set
-   * shape.resizeEnabled(false);
+   * transformer.resizeEnabled(false);
    */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'resizeEnabled', true);
+  /**
+   * get/set anchor size. Default is 10
+   * @name validateAnchors
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Number} 10
+   * @returns {Number}
+   * @example
+   * // get
+   * var anchorSize = transformer.anchorSize();
+   *
+   * // set
+   * transformer.anchorSize(20)
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'anchorSize',
+    10,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set ability to rotate.
    * @name rotateEnabled
    * @method
    * @memberof Konva.Transformer.prototype
-   * @param {Array} array
-   * @returns {Array}
+   * @param {Boolean} enabled
+   * @returns {Boolean}
    * @example
    * // get
-   * var rotateEnabled = shape.rotateEnabled();
+   * var rotateEnabled = transformer.rotateEnabled();
    *
    * // set
-   * shape.rotateEnabled(false);
+   * transformer.rotateEnabled(false);
    */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'rotateEnabled', true);
 
@@ -813,58 +914,177 @@
    * @returns {Array}
    * @example
    * // get
-   * var rotationSnaps = shape.rotationSnaps();
+   * var rotationSnaps = transformer.rotationSnaps();
    *
    * // set
-   * shape.rotationSnaps([0, 90, 180, 270]);
+   * transformer.rotationSnaps([0, 90, 180, 270]);
    */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'rotationSnaps', []);
 
   /**
    * get/set distance for rotation handler
-   * @name rotateHandlerOffset
+   * @name rotateAnchorOffset
    * @method
    * @memberof Konva.Transformer.prototype
-   * @param {Array} array
-   * @returns {Array}
+   * @param {Number} offset
+   * @returns {Number}
    * @example
    * // get
-   * var rotateHandlerOffset = shape.rotateHandlerOffset();
+   * var rotateAnchorOffset = transformer.rotateAnchorOffset();
    *
    * // set
-   * shape.rotateHandlerOffset(100);
+   * transformer.rotateAnchorOffset(100);
    */
-  Konva.Factory.addGetterSetter(Konva.Transformer, 'rotateHandlerOffset', 50);
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'rotateAnchorOffset',
+    50,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set visibility of border
-   * @name lineEnabled
+   * @name borderEnabled
    * @method
    * @memberof Konva.Transformer.prototype
-   * @param {Array} array
-   * @returns {Array}
+   * @param {Boolean} enabled
+   * @returns {Boolean}
    * @example
    * // get
-   * var lineEnabled = shape.lineEnabled();
+   * var borderEnabled = transformer.borderEnabled();
    *
    * // set
-   * shape.lineEnabled(false);
+   * transformer.borderEnabled(false);
    */
-  Konva.Factory.addGetterSetter(Konva.Transformer, 'lineEnabled', true);
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'borderEnabled', true);
 
   /**
-   * get/set should we keep ration of resize?
+   * get/set anchor stroke color
+   * @name anchorStroke
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var anchorStroke = transformer.anchorStroke();
+   *
+   * // set
+   * transformer.anchorStroke('red');
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'anchorStroke',
+    'rgb(0, 161, 255)'
+  );
+
+  /**
+   * get/set anchor stroke width
+   * @name anchorStrokeWidth
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var anchorStrokeWidth = transformer.anchorStrokeWidth();
+   *
+   * // set
+   * transformer.anchorStrokeWidth(3);
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'anchorStrokeWidth',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set anchor fill color
+   * @name anchorFill
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var anchorFill = transformer.anchorFill();
+   *
+   * // set
+   * transformer.anchorFill('red');
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'anchorFill', 'white');
+
+  /**
+   * get/set border stroke color
+   * @name borderStroke
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderStroke = transformer.borderStroke();
+   *
+   * // set
+   * transformer.borderStroke('red');
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'borderStroke',
+    'rgb(0, 161, 255)'
+  );
+
+  /**
+   * get/set border stroke width
+   * @name borderStrokeWidth
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderStrokeWidth = transformer.borderStrokeWidth();
+   *
+   * // set
+   * transformer.borderStrokeWidth(3);
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'borderStrokeWidth',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set border dash array
+   * @name borderDash
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderDash = transformer.borderDash();
+   *
+   * // set
+   * transformer.borderDash([2, 2]);
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'borderDash');
+
+  /**
+   * get/set should we keep ratio while resize anchors at corners
    * @name keepRatio
    * @method
    * @memberof Konva.Transformer.prototype
-   * @param {Array} array
-   * @returns {Array}
+   * @param {Boolean} keepRatio
+   * @returns {Boolean}
    * @example
    * // get
-   * var keepRatio = shape.keepRatio();
+   * var keepRatio = transformer.keepRatio();
    *
    * // set
-   * shape.keepRatio(false);
+   * transformer.keepRatio(false);
    */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'keepRatio', true);
 
@@ -873,20 +1093,50 @@
    * @name padding
    * @method
    * @memberof Konva.Transformer.prototype
-   * @param {Array} array
-   * @returns {Array}
+   * @param {Number} padding
+   * @returns {Number}
    * @example
    * // get
-   * var padding = shape.padding();
+   * var padding = transformer.padding();
    *
    * // set
-   * shape.padding(10);
+   * transformer.padding(10);
    */
-  Konva.Factory.addGetterSetter(Konva.Transformer, 'padding', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'padding',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   Konva.Factory.addOverloadedGetterSetter(Konva.Transformer, 'node');
 
+  /**
+   * get/set bounding box function
+   * @name boundBoxFunc
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Function} func
+   * @returns {Function}
+   * @example
+   * // get
+   * var boundBoxFunc = transformer.boundBoxFunc();
+   *
+   * // set
+   * transformer.boundBoxFunc(function(oldBox, newBox) {
+   *   if (newBox.width > 200) {
+   *     return oldBox;
+   *   }
+   *   return newBox;
+   * });
+   */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'boundBoxFunc');
+
+  Konva.Factory.backCompat(Konva.Transformer, {
+    lineEnabled: 'borderEnabled',
+    rotateHandlerOffset: 'rotateAnchorOffset',
+    enabledHandlers: 'enabledAnchors'
+  });
 
   Konva.Collection.mapMethods(Konva.Transformer);
 })(Konva);

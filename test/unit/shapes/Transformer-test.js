@@ -681,6 +681,42 @@ suite('Transformer', function() {
     tr.destroy();
   });
 
+  test('can destroy with attached node while resize', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    stage.add(layer);
+
+    var rect = new Konva.Rect({
+      x: 100,
+      y: 60,
+      draggable: true,
+      width: 100,
+      height: 100,
+      fill: 'yellow'
+    });
+    layer.add(rect);
+
+    var tr = new Konva.Transformer({
+      node: rect
+    });
+    layer.add(tr);
+
+    layer.draw();
+
+    stage.simulateMouseDown({
+      x: 100,
+      y: 60
+    });
+
+    assert.equal(tr.isTransforming(), true);
+
+    tr.destroy();
+
+    assert.equal(tr.isTransforming(), false);
+
+    assert.equal(tr.getNode(), undefined);
+  });
+
   test('can add padding', function() {
     var stage = addStage();
     var layer = new Konva.Layer();
@@ -997,7 +1033,38 @@ suite('Transformer', function() {
       x: 50,
       y: 1
     });
-    assert.equal(stage.content.style.cursor, 'nesw-resize');
+    assert.equal(stage.content.style.cursor, 'nwse-resize');
+  });
+
+  test('check correct cursor on scaled parent', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer({
+      y: 100,
+      scaleY: -1
+    });
+    stage.add(layer);
+
+    var rect = new Konva.Rect({
+      x: 50,
+      y: 0,
+      draggable: true,
+      width: 100,
+      height: 100,
+      fill: 'yellow'
+    });
+    layer.add(rect);
+
+    var tr = new Konva.Transformer({
+      node: rect
+    });
+    layer.add(tr);
+    layer.draw();
+
+    stage.simulateMouseMove({
+      x: 50,
+      y: 1
+    });
+    assert.equal(stage.content.style.cursor, 'nwse-resize');
   });
 
   test('stopTransform method', function() {
@@ -1100,5 +1167,242 @@ suite('Transformer', function() {
     // assert.equal(rect.width() * rect.scaleX(), 100);
     // assert.equal(rect.height() * rect.scaleY(), 100);
     // assert.equal(rect.rotation(), rect.rotation());
+  });
+
+  test('test cache reset on attach', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    stage.add(layer);
+
+    var rect = new Konva.Rect({
+      x: 20,
+      y: 20,
+      draggable: true,
+      width: 150,
+      height: 100,
+      fill: 'yellow'
+    });
+    layer.add(rect);
+
+    var tr = new Konva.Transformer();
+    layer.add(tr);
+
+    // make draw to set all caches
+    layer.draw();
+    // then attach
+    tr.attachTo(rect);
+
+    layer.draw();
+
+    var shape = layer.getIntersection({
+      x: 20,
+      y: 20
+    });
+    assert.equal(shape.name(), 'top-left _anchor');
+  });
+
+  test('check rotator size on scaled transformer', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer({
+      scaleX: 10,
+      scaleY: 10
+    });
+    stage.add(layer);
+
+    var rect = new Konva.Rect({
+      x: 5,
+      y: 16,
+      draggable: true,
+      width: 10,
+      height: 10,
+      fill: 'yellow'
+    });
+    layer.add(rect);
+
+    var tr = new Konva.Transformer({
+      node: rect
+    });
+    layer.add(tr);
+    layer.draw();
+
+    var rotater = tr.findOne('.rotater');
+    var pos = rotater.getAbsolutePosition();
+
+    // pos.x === (x * scaleX - (height))
+    assert.equal(pos.x, 100);
+
+    // pos.y === (y * scaleY - (height * scaleY / 2))
+    assert.equal(pos.y, 110);
+  });
+
+  test('if alt is pressed should transform around center', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    stage.add(layer);
+
+    var rect = new Konva.Rect({
+      draggable: true,
+      fill: 'yellow'
+    });
+    layer.add(rect);
+
+    var tr = new Konva.Transformer({
+      node: rect
+    });
+    layer.add(tr);
+
+    var tests = [
+      {
+        name: 'top-left',
+        startPos: {
+          x: 0,
+          y: 0
+        },
+        endPos: {
+          x: 25,
+          y: 25
+        },
+        expectedWidth: 50,
+        expectedHeight: 50
+      },
+      {
+        name: 'top-center',
+        startPos: {
+          x: 50,
+          y: 0
+        },
+        endPos: {
+          x: 50,
+          y: 25
+        },
+        expectedWidth: 100,
+        expectedHeight: 50
+      },
+      {
+        name: 'top-right',
+        startPos: {
+          x: 100,
+          y: 0
+        },
+        endPos: {
+          x: 75,
+          y: 25
+        },
+        expectedWidth: 50,
+        expectedHeight: 50
+      },
+      {
+        name: 'middle-left',
+        startPos: {
+          x: 0,
+          y: 50
+        },
+        endPos: {
+          x: 25,
+          y: 50
+        },
+        expectedWidth: 50,
+        expectedHeight: 100
+      },
+      {
+        name: 'middle-right',
+        startPos: {
+          x: 100,
+          y: 50
+        },
+        endPos: {
+          x: 75,
+          y: 50
+        },
+        expectedWidth: 50,
+        expectedHeight: 100
+      },
+      {
+        name: 'bottom-left',
+        startPos: {
+          x: 0,
+          y: 100
+        },
+        endPos: {
+          x: 25,
+          y: 75
+        },
+        expectedWidth: 50,
+        expectedHeight: 50
+      },
+      {
+        name: 'bottom-center',
+        startPos: {
+          x: 50,
+          y: 100
+        },
+        endPos: {
+          x: 50,
+          y: 75
+        },
+        expectedWidth: 100,
+        expectedHeight: 50
+      },
+      {
+        name: 'bottom-right',
+        startPos: {
+          x: 100,
+          y: 100
+        },
+        endPos: {
+          x: 75,
+          y: 75
+        },
+        expectedWidth: 50,
+        expectedHeight: 50
+      }
+    ];
+
+    tests.forEach(test => {
+      rect.setAttrs({
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        scaleX: 1,
+        scaleY: 1
+      });
+      tr.update();
+
+      layer.draw();
+
+      stage.simulateMouseDown(test.startPos);
+
+      var target = stage.getIntersection(test.startPos);
+      var top = stage.content.getBoundingClientRect().top;
+      tr._handleMouseMove({
+        target: target,
+        clientX: test.endPos.x,
+        clientY: test.endPos.y + top,
+        altKey: true
+      });
+
+      // here is duplicate, because transformer is listening window events
+      tr._handleMouseUp({
+        clientX: test.endPos.x,
+        clientY: test.endPos.y + top
+      });
+      stage.simulateMouseUp({
+        x: test.endPos.x,
+        y: test.endPos.y
+      });
+      layer.draw();
+
+      assert.equal(
+        rect.width() * rect.scaleX(),
+        test.expectedWidth,
+        test.name + ' width check'
+      );
+      assert.equal(
+        rect.height() * rect.scaleY(),
+        test.expectedHeight,
+        test.name + ' height check'
+      );
+    });
   });
 });
