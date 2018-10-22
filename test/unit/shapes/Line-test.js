@@ -286,6 +286,29 @@ suite('Line', function() {
     });
   });
 
+  // TODO: FIX IT!!!
+  test.skip('getClientRect rotated', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+
+    var line = new Konva.Line({
+      x: 20,
+      y: 20,
+      rotation: 45,
+      points: [0, 0, 50, 50],
+      closed: true,
+      stroke: '#0f0'
+    });
+    layer.add(line);
+    stage.add(layer);
+
+    var rect = line.getClientRect();
+    assert.equal(rect.x, 19, 'check x');
+    assert.equal(rect.y, 19, 'check y');
+    // assert.equal(rect.width, 2, 'check width');
+    assert.equal(rect.height, 52, 'check height');
+  });
+
   test('line caching', function() {
     var stage = addStage();
     var layer = new Konva.Layer();
@@ -308,5 +331,35 @@ suite('Line', function() {
     stage.add(layer2);
     layer2.hide();
     compareLayers(layer, layer2);
+  });
+
+  test('updating points with old mutable array should trigger recalculations', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+
+    var points = [-25, 50, 250, -30, 150, 50];
+    var blob = new Konva.Line({
+      x: 50,
+      y: 50,
+      points: points,
+      stroke: 'blue',
+      strokeWidth: 10,
+      draggable: true,
+      closed: true,
+      tension: 1
+    });
+
+    var tensionPoints = blob.getTensionPoints();
+    points.push(250, 100);
+    blob.setPoints(points);
+
+    layer.add(blob);
+    stage.add(layer);
+
+    assert.equal(
+      tensionPoints === blob.getTensionPoints(),
+      false,
+      'calculated points should change'
+    );
   });
 });

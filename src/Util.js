@@ -107,7 +107,10 @@
     */
 
   /**
-   * Transform constructor
+   * Transform constructor. Transform object is a private class of Konva framework.
+   * In most of the cases you don't need to use it in your app.
+   * But there is a documentation for that class in case you still want
+   * to make some manual calculations.
    * @constructor
    * @param {Array} [m] Optional six-element matrix
    * @memberof Konva
@@ -300,6 +303,7 @@
     OBJECT_ARRAY = '[object Array]',
     OBJECT_NUMBER = '[object Number]',
     OBJECT_STRING = '[object String]',
+    OBJECT_BOOLEAN = '[object Boolean]',
     PI_OVER_DEG180 = Math.PI / 180,
     DEG180_OVER_PI = 180 / Math.PI,
     HASH = '#',
@@ -482,10 +486,21 @@
       return Object.prototype.toString.call(obj) === OBJECT_ARRAY;
     },
     _isNumber: function(obj) {
-      return Object.prototype.toString.call(obj) === OBJECT_NUMBER;
+      return (
+        Object.prototype.toString.call(obj) === OBJECT_NUMBER &&
+        !isNaN(obj) &&
+        isFinite(obj)
+      );
     },
     _isString: function(obj) {
       return Object.prototype.toString.call(obj) === OBJECT_STRING;
+    },
+    _isBoolean: function(obj) {
+      return Object.prototype.toString.call(obj) === OBJECT_BOOLEAN;
+    },
+    // arrays are objects too
+    isObject: function(val) {
+      return val instanceof Object;
     },
     isValidSelector: function(selector) {
       if (typeof selector !== 'string') {
@@ -497,6 +512,16 @@
         firstChar === '.' ||
         firstChar === firstChar.toUpperCase()
       );
+    },
+    _sign: function(number) {
+      if (number === 0) {
+        return 0;
+      }
+      if (number > 0) {
+        return 1;
+      } else {
+        return -1;
+      }
     },
     createCanvasElement: function() {
       var canvas = Konva.isBrowser

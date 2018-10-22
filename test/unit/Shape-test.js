@@ -341,12 +341,13 @@ suite('Shape', function() {
 
   test('stroke gradient', function() {
     var stage = addStage();
-    var layer = new Konva.Layer();
-    stage.add(layer);
+    var layer = new Konva.Layer({
+      scaleY: 1.5
+    });
 
     var shape = new Konva.Rect({
-      x: 50,
-      y: 50,
+      x: 10,
+      y: 10,
       width: 100,
       height: 100,
       fillLinearGradientColorStops: [0, 'yellow', 0.5, 'red', 1, 'white'],
@@ -370,8 +371,14 @@ suite('Shape', function() {
       }
     });
     layer.add(shape);
+    stage.add(layer);
 
-    layer.draw();
+    var trace = layer.getContext().getTrace();
+
+    assert.equal(
+      trace,
+      'clearRect(0,0,578,200);save();transform(3,0,0,1.5,10,15);beginPath();rect(0,0,100,100);closePath();createLinearGradient(0,0,100,100);fillStyle=[object CanvasGradient];fill();lineWidth=2;createLinearGradient(0,0,100,100);strokeStyle=[object CanvasGradient];stroke();restore();'
+    );
   });
 
   // ======================================================
@@ -497,7 +504,7 @@ suite('Shape', function() {
     context.shadowOffsetY = 10 * canvas.ratio;
     context.fill();
 
-    compareLayerAndCanvas(layer, canvas, 10);
+    compareLayerAndCanvas(layer, canvas, 30);
 
     var trace = layer.getContext().getTrace();
 
@@ -662,6 +669,7 @@ suite('Shape', function() {
   });
 
   // ======================================================
+  // hard to emulate the same drawing
   test.skip('fill and stroke with shadow and opacity', function() {
     var stage = addStage();
     var layer = new Konva.Layer();
@@ -727,7 +735,7 @@ suite('Shape', function() {
     // don't test in PhantomJS as it use old chrome engine
     // it it has opacity + shadow bug
     if (!window.mochaPhantomJS) {
-      compareLayerAndCanvas(layer, canvas, 240);
+      compareLayerAndCanvas(layer, canvas, 260);
     }
 
     var trace = layer.getContext().getTrace();
@@ -947,7 +955,7 @@ suite('Shape', function() {
   });
 
   // ======================================================
-  test.skip('hit graph when shape cached before adding to Layer', function() {
+  test('hit graph when shape cached before adding to Layer', function() {
     var stage = addStage();
     var layer = new Konva.Layer();
     var rect = new Konva.Rect({
@@ -977,12 +985,10 @@ suite('Shape', function() {
       y: 120
     });
 
-    // Konva.DD._endDragBefore();
     stage.simulateMouseUp({
       x: 300,
       y: 120
     });
-    // Konva.DD._endDragAfter({ dragEndNode: rect });
 
     //TODO: can't get this to pass
     assert.equal(
@@ -992,7 +998,7 @@ suite('Shape', function() {
     );
   });
 
-  test('class inherince', function() {
+  test('class inherence', function() {
     var rect = new Konva.Rect();
     assert.equal(rect instanceof Konva.Rect, true);
     assert.equal(rect instanceof Konva.Shape, true);
@@ -1280,16 +1286,15 @@ suite('Shape', function() {
     context.lineWidth = 10;
     context.fill();
 
-    context.shadowColor = 'rgba(0,0,0, 0)';
+    context.shadowColor = 'rgba(0,0,0,0)';
     context.stroke();
 
     compareLayerAndCanvas(layer, canvas, 10);
 
     var trace = layer.getContext().getTrace();
-    //console.log(trace);
     assert.equal(
       trace,
-      'clearRect(0,0,578,200);save();transform(1,0,0,1,100,50);save();shadowColor=rgba(128,128,128,1);shadowBlur=10;shadowOffsetX=20;shadowOffsetY=20;beginPath();rect(0,0,100,50);closePath();fillStyle=green;fill();lineWidth=10;strokeStyle=black;shadowColor=rgba(0,0,0,0);stroke();restore();restore();'
+      'clearRect(0,0,578,200);save();transform(1,0,0,1,100,50);save();shadowColor=rgba(128,128,128,1);shadowBlur=10;shadowOffsetX=20;shadowOffsetY=20;beginPath();rect(0,0,100,50);closePath();fillStyle=green;fill();lineWidth=10;shadowColor=rgba(0,0,0,0);strokeStyle=black;stroke();restore();restore();'
     );
   });
 
@@ -1438,5 +1443,36 @@ suite('Shape', function() {
     if (!window.isPhantomJS) {
       compareLayers(layer1, layer2, 30);
     }
+  });
+
+  // ======================================================
+  test('sceneFunc and hitFunc should have shape as second argument', function() {
+    var stage = addStage();
+    var layer = new Konva.Layer();
+    var shape = new Konva.Shape({
+      sceneFunc: function(context, shape) {
+        assert.equal(this, shape);
+        context.beginPath();
+        context.moveTo(0, 0);
+        context.lineTo(100, 0);
+        context.lineTo(100, 100);
+        context.closePath();
+        context.fillStrokeShape(shape);
+      },
+      x: 200,
+      y: 100,
+      fill: 'green',
+      stroke: 'blue',
+      strokeWidth: 5
+    });
+    layer.add(shape);
+
+    var rect = new Konva.Rect({
+      hitFunc: function(ctx, shape) {
+        assert.equal(this, shape);
+      }
+    });
+    layer.add(rect);
+    stage.add(layer);
   });
 });

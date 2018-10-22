@@ -3,11 +3,139 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Not released][not released]
+## [new version][unreleased]
+
+### Fixed
+
+* Tween support for gradient properties
 
 ### Added
 
-* new `Konva.Transformer` group that allow simple resize, and rotate of a shape.
+* Centered resize with ALT key for `Konva.Transformer`
+
+## [2.3.0][2018-08-30]
+
+### Added
+
+* new methods `path.getLength()` and `path.getPointAtLength(val)`
+* `verticalAlign` for `Konva.Text`
+
+## [2.2.2][2018-08-21]
+
+### Changed
+
+* Default duration for tweens and `node.to()` methods is now 300ms
+* Typescript fixes
+* Automatic validations for many attributes
+
+## [2.2.1][2018-08-10]
+
+### Added
+
+* New properties for `Konva.Transformer`: `borderStroke`, `borderStrokeWidth`, `borderDash`, `anchorStroke`, `anchorStrokeWidth`, `anchorSize`.
+
+### Changed
+
+* Some properties of `Konva.Transformer` are renamed. `lineEnabled` -> `borderEnabled`. `rotateHandlerOffset` -> `rotateAnchorOffset`, `enabledHandlers` -> `enabledAnchors`.
+
+## [2.1.8][2018-08-01]
+
+### Fixed
+
+* Some `Konva.Transformer` fixes
+* Typescript fixes
+* `stage.toDataURL()` fixes when it has hidden layers
+* `shape.toDataURL()` automatically adjust position and size of resulted image
+
+## [2.1.7][2018-07-03]
+
+### Fixed
+
+* `toObject` fixes
+
+## [2.1.7][2018-07-03]
+
+### Fixed
+
+* Some drag&drop fixes
+
+## [2.1.6][2018-06-16]
+
+### Fixed
+
+* Removed wrong dep
+* Typescript fixes
+
+## [2.1.5][2018-06-15]
+
+### Fixed
+
+* Typescript fixes
+* add shape as second argument for `sceneFunc` and `hitFunc`
+
+## [2.1.4][2018-06-15]
+
+### Fixed
+
+* Fixed `Konva.Text` justify drawing for a text with decoration
+* Added methods `data()`,`setData()`  and `getData()` methods to `Konva.TextPath`
+* Correct cache reset for `Konva.Transformer`
+
+## [2.1.3][2018-05-17]
+
+### Fixed
+
+* `Konva.Transformer` automatically track shape changes
+* `Konva.Transformer` works with shapes with offset too
+
+## [2.1.2][2018-05-16]
+
+### Fixed
+
+* Cursor fixes for `Konva.Transformer`
+* Fixed lineHeight behavior for `Konva.Text`
+* Some performance optimizations for `Konva.Text`
+* Better wrap algorithm for `Konva.Text`
+* fixed `Konva.Arrow` with tension != 0
+* Some fixes for `Konva.Transformer`
+
+## [2.0.3][2018-04-21]
+
+### Added
+
+* Typescript defs for `Konva.Transformer`
+* Typescript defs for `globalCompositeOperation`
+
+## Changes
+
+* Fixed flow for `contextmenu` event. Now it will be triggered on shapes too
+* `find()` method for Containers can use a function as a parameter
+
+### Fixed
+
+* some bugs fixes for `group.getClientRect()`
+* `Konva.Arrow` will not draw dash for pointers
+* setAttr will trigger change event if new value is the same Object
+* better behavior of `dblclick` event when you click fast on different shapes
+* `stage.toDataURL` will use `pixelRatio = 1` by default.
+
+## [2.0.2][2018-03-15]
+
+### Fixed
+
+* Even more bugs fixes for `Konva.Transformer`
+
+## [2.0.1][2018-03-15]
+
+### Fixed
+
+* Several bugs fixes for `Konva.Transformer`
+
+## [2.0.0][2018-03-15]
+
+### Added
+
+* new `Konva.Transformer`. It is a special group that allow simple resizing and rotation of a shape.
 * Add ability to remove event by callback `node.off('event', callback)`.
 * new `Konva.Filters.Contrast`.
 * new `Konva.Util.haveIntersection()` to detect simple collusion
@@ -16,12 +144,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Changed
 
-* stage events are slightly changed. `mousedown`, `click`, `mouseup`, `dblclick`, `touchstart`, `touchend`, `tap`, `dbltap` will be triggered when clicked on empty areas.
+* stage events are slightly changed. `mousedown`, `click`, `mouseup`, `dblclick`, `touchstart`, `touchend`, `tap`, `dbltap` will be triggered when clicked on empty areas too
 
-## Fixed
+### Fixed
 
 * Some typescript fixes
 * Pixelate filter fixes
+* Fixes for path data parsing
+* Fixed shadow size calculation
 
 ## Removed
 
@@ -29,13 +159,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [1.7.6][2017-11-01]
 
-## Fixed
+### Fixed
 
 * Some typescript fixes
 
 ## [1.7.4][2017-10-30]
 
-## Fixed
+### Fixed
 
 * `isBrowser` detection for electron
 

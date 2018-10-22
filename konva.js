@@ -1,8 +1,8 @@
 /*
- * Konva JavaScript Framework v1.7.6
+ * Konva JavaScript Framework v2.3.0
  * http://konvajs.github.io/
  * Licensed under the MIT
- * Date: Sat Mar 10 2018
+ * Date: Tue Sep 11 2018
  *
  * Original work Copyright (C) 2011 - 2013 by Eric Rowell (KineticJS)
  * Modified work Copyright (C) 2014 - present by Anton Lavrenov (Konva)
@@ -21,7 +21,7 @@
 
   var Konva = {
     // public
-    version: '1.7.6',
+    version: '2.3.0',
 
     // private
     stages: [],
@@ -38,6 +38,10 @@
       ({}.toString.call(window) === '[object Window]' ||
         // electron case
         {}.toString.call(window) === '[object global]'),
+
+    isUnminified: /comment/.test(function() {
+      /* comment */
+    }),
 
     // configurations
     enableTrace: false,
@@ -122,9 +126,18 @@
       return false;
     },
     _addId: function(node, id) {
-      if (id !== undefined) {
-        this.ids[id] = node;
+      if (!id) {
+        return;
       }
+      // do we need this warning?
+      // if (this.ids[id]) {
+      //   Konva.Util.warn(
+      //     'Duplicate id "' +
+      //       id +
+      //       '". Please don not use same id several times. It may break find() method look up.'
+      //   );
+      // }
+      this.ids[id] = node;
     },
     _removeId: function(id) {
       if (id !== undefined) {
@@ -218,7 +231,9 @@
       ? global
       : typeof window !== 'undefined'
         ? window
-        : typeof WorkerGlobalScope !== 'undefined' ? self : {};
+        : typeof WorkerGlobalScope !== 'undefined'
+          ? self
+          : {};
 
   Konva.UA = Konva._parseUA((glob.navigator && glob.navigator.userAgent) || '');
 
@@ -352,7 +367,10 @@
     */
 
   /**
-   * Transform constructor
+   * Transform constructor. Transform object is a private class of Konva framework.
+   * In most of the cases you don't need to use it in your app.
+   * But there is a documentation for that class in case you still want
+   * to make some manual calculations.
    * @constructor
    * @param {Array} [m] Optional six-element matrix
    * @memberof Konva
@@ -545,6 +563,7 @@
     OBJECT_ARRAY = '[object Array]',
     OBJECT_NUMBER = '[object Number]',
     OBJECT_STRING = '[object String]',
+    OBJECT_BOOLEAN = '[object Boolean]',
     PI_OVER_DEG180 = Math.PI / 180,
     DEG180_OVER_PI = 180 / Math.PI,
     HASH = '#',
@@ -727,10 +746,21 @@
       return Object.prototype.toString.call(obj) === OBJECT_ARRAY;
     },
     _isNumber: function(obj) {
-      return Object.prototype.toString.call(obj) === OBJECT_NUMBER;
+      return (
+        Object.prototype.toString.call(obj) === OBJECT_NUMBER &&
+        !isNaN(obj) &&
+        isFinite(obj)
+      );
     },
     _isString: function(obj) {
       return Object.prototype.toString.call(obj) === OBJECT_STRING;
+    },
+    _isBoolean: function(obj) {
+      return Object.prototype.toString.call(obj) === OBJECT_BOOLEAN;
+    },
+    // arrays are objects too
+    isObject: function(val) {
+      return val instanceof Object;
     },
     isValidSelector: function(selector) {
       if (typeof selector !== 'string') {
@@ -742,6 +772,16 @@
         firstChar === '.' ||
         firstChar === firstChar.toUpperCase()
       );
+    },
+    _sign: function(number) {
+      if (number === 0) {
+        return 0;
+      }
+      if (number > 0) {
+        return 1;
+      } else {
+        return -1;
+      }
     },
     createCanvasElement: function() {
       var canvas = Konva.isBrowser
@@ -1264,21 +1304,21 @@
   }
 
   /**
-     * Canvas Renderer constructor
-     * @constructor
-     * @abstract
-     * @memberof Konva
-     * @param {Object} config
-     * @param {Number} config.width
-     * @param {Number} config.height
-     * @param {Number} config.pixelRatio KonvaJS automatically handles pixel ratio adjustments in order to render crisp drawings
-     *  on all devices. Most desktops, low end tablets, and low end phones, have device pixel ratios
-     *  of 1.  Some high end tablets and phones, like iPhones and iPads (not the mini) have a device pixel ratio
-     *  of 2.  Some Macbook Pros, and iMacs also have a device pixel ratio of 2.  Some high end Android devices have pixel
-     *  ratios of 2 or 3.  Some browsers like Firefox allow you to configure the pixel ratio of the viewport.  Unless otherwise
-     *  specified, the pixel ratio will be defaulted to the actual device pixel ratio.  You can override the device pixel
-     *  ratio for special situations, or, if you don't want the pixel ratio to be taken into account, you can set it to 1.
-     */
+   * Canvas Renderer constructor
+   * @constructor
+   * @abstract
+   * @memberof Konva
+   * @param {Object} config
+   * @param {Number} config.width
+   * @param {Number} config.height
+   * @param {Number} config.pixelRatio KonvaJS automatically handles pixel ratio adjustments in order to render crisp drawings
+   *  on all devices. Most desktops, low end tablets, and low end phones, have device pixel ratios
+   *  of 1.  Some high end tablets and phones, like iPhones and iPads (not the mini) have a device pixel ratio
+   *  of 2.  Some Macbook Pros, and iMacs also have a device pixel ratio of 2.  Some high end Android devices have pixel
+   *  ratios of 2 or 3.  Some browsers like Firefox allow you to configure the pixel ratio of the viewport.  Unless otherwise
+   *  specified, the pixel ratio will be defaulted to the actual device pixel ratio.  You can override the device pixel
+   *  ratio for special situations, or, if you don't want the pixel ratio to be taken into account, you can set it to 1.
+   */
   Konva.Canvas = function(config) {
     this.init(config);
   };
@@ -1303,35 +1343,35 @@
       this._canvas.style.left = 0;
     },
     /**
-         * get canvas context
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @returns {CanvasContext} context
-         */
+     * get canvas context
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @returns {CanvasContext} context
+     */
     getContext: function() {
       return this.context;
     },
     /**
-         * get pixel ratio
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @returns {Number} pixel ratio
-         */
+     * get pixel ratio
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @returns {Number} pixel ratio
+     */
     getPixelRatio: function() {
       return this.pixelRatio;
     },
     /**
-         * get pixel ratio
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @param {Number} pixelRatio KonvaJS automatically handles pixel ratio adustments in order to render crisp drawings
-         *  on all devices. Most desktops, low end tablets, and low end phones, have device pixel ratios
-         *  of 1.  Some high end tablets and phones, like iPhones and iPads have a device pixel ratio
-         *  of 2.  Some Macbook Pros, and iMacs also have a device pixel ratio of 2.  Some high end Android devices have pixel
-         *  ratios of 2 or 3.  Some browsers like Firefox allow you to configure the pixel ratio of the viewport.  Unless otherwise
-         *  specificed, the pixel ratio will be defaulted to the actual device pixel ratio.  You can override the device pixel
-         *  ratio for special situations, or, if you don't want the pixel ratio to be taken into account, you can set it to 1.
-         */
+     * get pixel ratio
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @param {Number} pixelRatio KonvaJS automatically handles pixel ratio adustments in order to render crisp drawings
+     *  on all devices. Most desktops, low end tablets, and low end phones, have device pixel ratios
+     *  of 1.  Some high end tablets and phones, like iPhones and iPads have a device pixel ratio
+     *  of 2.  Some Macbook Pros, and iMacs also have a device pixel ratio of 2.  Some high end Android devices have pixel
+     *  ratios of 2 or 3.  Some browsers like Firefox allow you to configure the pixel ratio of the viewport.  Unless otherwise
+     *  specificed, the pixel ratio will be defaulted to the actual device pixel ratio.  You can override the device pixel
+     *  ratio for special situations, or, if you don't want the pixel ratio to be taken into account, you can set it to 1.
+     */
     setPixelRatio: function(pixelRatio) {
       var previousRatio = this.pixelRatio;
       this.pixelRatio = pixelRatio;
@@ -1341,11 +1381,11 @@
       );
     },
     /**
-         * set width
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @param {Number} width
-         */
+     * set width
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @param {Number} width
+     */
     setWidth: function(width) {
       // take into account pixel ratio
       this.width = this._canvas.width = width * this.pixelRatio;
@@ -1356,11 +1396,11 @@
       _context.scale(pixelRatio, pixelRatio);
     },
     /**
-         * set height
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @param {Number} height
-         */
+     * set height
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @param {Number} height
+     */
     setHeight: function(height) {
       // take into account pixel ratio
       this.height = this._canvas.height = height * this.pixelRatio;
@@ -1370,42 +1410,42 @@
       _context.scale(pixelRatio, pixelRatio);
     },
     /**
-         * get width
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @returns {Number} width
-         */
+     * get width
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @returns {Number} width
+     */
     getWidth: function() {
       return this.width;
     },
     /**
-         * get height
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @returns {Number} height
-         */
+     * get height
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @returns {Number} height
+     */
     getHeight: function() {
       return this.height;
     },
     /**
-         * set size
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @param {Number} width
-         * @param {Number} height
-         */
+     * set size
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @param {Number} width
+     * @param {Number} height
+     */
     setSize: function(width, height) {
       this.setWidth(width);
       this.setHeight(height);
     },
     /**
-         * to data url
-         * @method
-         * @memberof Konva.Canvas.prototype
-         * @param {String} mimeType
-         * @param {Number} quality between 0 and 1 for jpg mime types
-         * @returns {String} data url string
-         */
+     * to data url
+     * @method
+     * @memberof Konva.Canvas.prototype
+     * @param {String} mimeType
+     * @param {Number} quality between 0 and 1 for jpg mime types
+     * @returns {String} data url string
+     */
     toDataURL: function(mimeType, quality) {
       try {
         // If this call fails (due to browser bug, like in Firefox 3.6),
@@ -1512,11 +1552,11 @@
   ];
 
   /**
-     * Canvas Context constructor
-     * @constructor
-     * @abstract
-     * @memberof Konva
-     */
+   * Canvas Context constructor
+   * @constructor
+   * @abstract
+   * @memberof Konva
+   */
   Konva.Context = function(canvas) {
     this.init(canvas);
   };
@@ -1532,33 +1572,33 @@
       }
     },
     /**
-         * fill shape
-         * @method
-         * @memberof Konva.Context.prototype
-         * @param {Konva.Shape} shape
-         */
+     * fill shape
+     * @method
+     * @memberof Konva.Context.prototype
+     * @param {Konva.Shape} shape
+     */
     fillShape: function(shape) {
       if (shape.getFillEnabled()) {
         this._fill(shape);
       }
     },
     /**
-         * stroke shape
-         * @method
-         * @memberof Konva.Context.prototype
-         * @param {Konva.Shape} shape
-         */
+     * stroke shape
+     * @method
+     * @memberof Konva.Context.prototype
+     * @param {Konva.Shape} shape
+     */
     strokeShape: function(shape) {
       if (shape.getStrokeEnabled()) {
         this._stroke(shape);
       }
     },
     /**
-         * fill then stroke
-         * @method
-         * @memberof Konva.Context.prototype
-         * @param {Konva.Shape} shape
-         */
+     * fill then stroke
+     * @method
+     * @memberof Konva.Context.prototype
+     * @param {Konva.Shape} shape
+     */
     fillStrokeShape: function(shape) {
       var fillEnabled = shape.getFillEnabled();
       if (fillEnabled) {
@@ -1569,14 +1609,14 @@
       }
     },
     /**
-         * get context trace if trace is enabled
-         * @method
-         * @memberof Konva.Context.prototype
-         * @param {Boolean} relaxed if false, return strict context trace, which includes method names, method parameters
-         *  properties, and property values.  If true, return relaxed context trace, which only returns method names and
-         *  properites.
-         * @returns {String}
-         */
+     * get context trace if trace is enabled
+     * @method
+     * @memberof Konva.Context.prototype
+     * @param {Boolean} relaxed if false, return strict context trace, which includes method names, method parameters
+     *  properties, and property values.  If true, return relaxed context trace, which only returns method names and
+     *  properites.
+     * @returns {String}
+     */
     getTrace: function(relaxed) {
       var traceArr = this.traceArr,
         len = traceArr.length,
@@ -1618,15 +1658,16 @@
       return str;
     },
     /**
-         * clear trace if trace is enabled
-         * @method
-         * @memberof Konva.Context.prototype
-         */
+     * clear trace if trace is enabled
+     * @method
+     * @memberof Konva.Context.prototype
+     */
     clearTrace: function() {
       this.traceArr = [];
     },
     _trace: function(str) {
-      var traceArr = this.traceArr, len;
+      var traceArr = this.traceArr,
+        len;
 
       traceArr.push(str);
       len = traceArr.length;
@@ -1636,33 +1677,33 @@
       }
     },
     /**
-         * reset canvas context transform
-         * @method
-         * @memberof Konva.Context.prototype
-         */
+     * reset canvas context transform
+     * @method
+     * @memberof Konva.Context.prototype
+     */
     reset: function() {
       var pixelRatio = this.getCanvas().getPixelRatio();
       this.setTransform(1 * pixelRatio, 0, 0, 1 * pixelRatio, 0, 0);
     },
     /**
-         * get canvas
-         * @method
-         * @memberof Konva.Context.prototype
-         * @returns {Konva.Canvas}
-         */
+     * get canvas
+     * @method
+     * @memberof Konva.Context.prototype
+     * @returns {Konva.Canvas}
+     */
     getCanvas: function() {
       return this.canvas;
     },
     /**
-         * clear canvas
-         * @method
-         * @memberof Konva.Context.prototype
-         * @param {Object} [bounds]
-         * @param {Number} [bounds.x]
-         * @param {Number} [bounds.y]
-         * @param {Number} [bounds.width]
-         * @param {Number} [bounds.height]
-         */
+     * clear canvas
+     * @method
+     * @memberof Konva.Context.prototype
+     * @param {Object} [bounds]
+     * @param {Number} [bounds.x]
+     * @param {Number} [bounds.y]
+     * @param {Number} [bounds.width]
+     * @param {Number} [bounds.height]
+     */
     clear: function(bounds) {
       var canvas = this.getCanvas();
 
@@ -1754,7 +1795,8 @@
       );
     },
     drawImage: function() {
-      var a = arguments, _context = this._context;
+      var a = arguments,
+        _context = this._context;
 
       if (a.length === 3) {
         _context.drawImage(a[0], a[1], a[2]);
@@ -1832,7 +1874,8 @@
       this._context.scale(a[0], a[1]);
     },
     setLineDash: function() {
-      var a = arguments, _context = this._context;
+      var a = arguments,
+        _context = this._context;
 
       // works for Chrome and IE11
       if (this._context.setLineDash) {
@@ -1879,7 +1922,8 @@
 
       // to prevent creating scope function at each loop
       var func = function(methodName) {
-        var origMethod = that[methodName], ret;
+        var origMethod = that[methodName],
+          ret;
 
         that[methodName] = function() {
           args = _simplifyArray(Array.prototype.slice.call(arguments, 0));
@@ -2008,22 +2052,34 @@
     },
     _fill: function(shape) {
       var hasColor = shape.fill(),
-        hasPattern = shape.getFillPatternImage(),
-        hasLinearGradient = shape.getFillLinearGradientColorStops(),
-        hasRadialGradient = shape.getFillRadialGradientColorStops(),
         fillPriority = shape.getFillPriority();
 
       // priority fills
       if (hasColor && fillPriority === 'color') {
         this._fillColor(shape);
-      } else if (hasPattern && fillPriority === 'pattern') {
+        return;
+      }
+
+      var hasPattern = shape.getFillPatternImage();
+      if (hasPattern && fillPriority === 'pattern') {
         this._fillPattern(shape);
-      } else if (hasLinearGradient && fillPriority === 'linear-gradient') {
+        return;
+      }
+
+      var hasLinearGradient = shape.getFillLinearGradientColorStops();
+      if (hasLinearGradient && fillPriority === 'linear-gradient') {
         this._fillLinearGradient(shape);
-      } else if (hasRadialGradient && fillPriority === 'radial-gradient') {
+        return;
+      }
+
+      var hasRadialGradient = shape.getFillRadialGradientColorStops();
+      if (hasRadialGradient && fillPriority === 'radial-gradient') {
         this._fillRadialGradient(shape);
-      } else if (hasColor) {
-        // now just try and fill with whatever is available
+        return;
+      }
+
+      // now just try and fill with whatever is available
+      if (hasColor) {
         this._fillColor(shape);
       } else if (hasPattern) {
         this._fillPattern(shape);
@@ -2066,15 +2122,18 @@
         }
 
         this.setAttr('lineWidth', shape.strokeWidth());
-        this.setAttr('strokeStyle', shape.stroke());
 
         if (!shape.getShadowForStrokeEnabled()) {
           this.setAttr('shadowColor', 'rgba(0,0,0,0)');
         }
 
+        // TODO - do we need to make like a fill function?
+
         var hasLinearGradient = shape.getStrokeLinearGradientColorStops();
         if (hasLinearGradient) {
           this._strokeLinearGradient(shape);
+        } else {
+          this.setAttr('strokeStyle', shape.stroke());
         }
 
         shape._strokeFunc(this);
@@ -2092,7 +2151,6 @@
           x: 0,
           y: 0
         }),
-        // TODO: get this info from transform??
         scale = shape.getAbsoluteScale(),
         ratio = this.canvas.getPixelRatio(),
         scaleX = scale.x * ratio,
@@ -2101,7 +2159,7 @@
       this.setAttr('shadowColor', color);
       this.setAttr(
         'shadowBlur',
-        blur * ratio * Math.min(Math.abs(scaleX), Math.abs(scaleY))
+        blur * Math.min(Math.abs(scaleX), Math.abs(scaleY))
       );
       this.setAttr('shadowOffsetX', offset.x * scaleX);
       this.setAttr('shadowOffsetY', offset.y * scaleY);
@@ -2169,11 +2227,14 @@
       };
     },
     addSetter: function(constructor, attr, validator, after) {
+      // if (!validator && validator !== null) {
+      //   console.error(constructor, attr, 'has no validator.');
+      // }
       var method = SET + Konva.Util._capitalize(attr);
 
       constructor.prototype[method] = function(val) {
-        if (validator) {
-          val = validator.call(this, val);
+        if (validator && val !== undefined && val !== null) {
+          val = validator.call(this, val, attr);
         }
 
         this._setAttr(attr, val);
@@ -2274,15 +2335,23 @@
     backCompat: function(constructor, methods) {
       Konva.Util.each(methods, function(oldMethodName, newMethodName) {
         var method = constructor.prototype[newMethodName];
-        constructor.prototype[oldMethodName] = function() {
+        var oldGetter = GET + Konva.Util._capitalize(oldMethodName);
+        var oldSetter = SET + Konva.Util._capitalize(oldMethodName);
+
+        function deprecated() {
           method.apply(this, arguments);
           Konva.Util.error(
-            oldMethodName +
-              ' method is deprecated and will be removed soon. Use ' +
+            '"' +
+              oldMethodName +
+              '" method is deprecated and will be removed soon. Use ""' +
               newMethodName +
-              ' instead'
+              '" instead.'
           );
-        };
+        }
+
+        constructor.prototype[oldMethodName] = deprecated;
+        constructor.prototype[oldGetter] = deprecated;
+        constructor.prototype[oldSetter] = deprecated;
       });
     },
     afterSetFilter: function() {
@@ -2311,6 +2380,124 @@
       }
 
       return val;
+    },
+    _formatValue: function(val) {
+      if (Konva.Util._isString(val)) {
+        return '"' + val + '"';
+      }
+      if (Object.prototype.toString.call(val) === '[object Number]') {
+        return val;
+      }
+      if (Konva.Util._isBoolean(val)) {
+        return val;
+      }
+      return Object.prototype.toString.call(val);
+    },
+    getNumberValidator: function() {
+      if (Konva.isUnminified) {
+        return function(val, attr) {
+          if (!Konva.Util._isNumber(val)) {
+            Konva.Util.warn(
+              Konva.Validators._formatValue(val) +
+                ' is a not valid value for "' +
+                attr +
+                '" attribute. The value should be a number.'
+            );
+          }
+          return val;
+        };
+      }
+    },
+    getNumberOrAutoValidator: function() {
+      if (Konva.isUnminified) {
+        return function(val, attr) {
+          var isNumber = Konva.Util._isNumber(val);
+          var isAuto = val === 'auto';
+
+          if (!(isNumber || isAuto)) {
+            Konva.Util.warn(
+              Konva.Validators._formatValue(val) +
+                ' is a not valid value for "' +
+                attr +
+                '" attribute. The value should be a number or "auto".'
+            );
+          }
+          return val;
+        };
+      }
+    },
+    getStringValidator: function() {
+      if (Konva.isUnminified) {
+        return function(val, attr) {
+          if (!Konva.Util._isString(val)) {
+            Konva.Util.warn(
+              Konva.Validators._formatValue(val) +
+                ' is a not valid value for "' +
+                attr +
+                '" attribute. The value should be a string.'
+            );
+          }
+          return val;
+        };
+      }
+    },
+    getFunctionValidator: function() {
+      if (Konva.isUnminified) {
+        return function(val, attr) {
+          if (!Konva.Util._isFunction(val)) {
+            Konva.Util.warn(
+              Konva.Validators._formatValue(val) +
+                ' is a not valid value for "' +
+                attr +
+                '" attribute. The value should be a function.'
+            );
+          }
+          return val;
+        };
+      }
+    },
+    getNumberArrayValidator: function() {
+      if (Konva.isUnminified) {
+        return function(val, attr) {
+          if (!Konva.Util._isArray(val)) {
+            Konva.Util.warn(
+              Konva.Validators._formatValue(val) +
+                ' is a not valid value for "' +
+                attr +
+                '" attribute. The value should be a array of numbers.'
+            );
+          } else {
+            val.forEach(function(item) {
+              if (!Konva.Util._isNumber(item)) {
+                Konva.Util.warn(
+                  '"' +
+                    attr +
+                    '" attribute has non numeric element ' +
+                    item +
+                    '. Make sure that all elements are numbers.'
+                );
+              }
+            });
+          }
+          return val;
+        };
+      }
+    },
+    getBooleanValidator: function() {
+      if (Konva.isUnminified) {
+        return function(val, attr) {
+          var isBool = val === true || val === false;
+          if (!isBool) {
+            Konva.Util.warn(
+              Konva.Validators._formatValue(val) +
+                ' is a not valid value for "' +
+                attr +
+                '" attribute. The value should be a boolean.'
+            );
+          }
+          return val;
+        };
+      }
     }
   };
 })();
@@ -2388,7 +2575,6 @@
 
   Konva.Util.addMethods(Konva.Node, {
     _init: function(config) {
-      var that = this;
       this._id = Konva.idCounter++;
       this.eventListeners = {};
       this.attrs = {};
@@ -2400,21 +2586,21 @@
       // event bindings for cache handling
       this.on(TRANSFORM_CHANGE_STR, function() {
         this._clearCache(TRANSFORM);
-        that._clearSelfAndDescendantCache(ABSOLUTE_TRANSFORM);
+        this._clearSelfAndDescendantCache(ABSOLUTE_TRANSFORM);
       });
 
       this.on(SCALE_CHANGE_STR, function() {
-        that._clearSelfAndDescendantCache(ABSOLUTE_SCALE);
+        this._clearSelfAndDescendantCache(ABSOLUTE_SCALE);
       });
 
       this.on('visibleChange.konva', function() {
-        that._clearSelfAndDescendantCache(VISIBLE);
+        this._clearSelfAndDescendantCache(VISIBLE);
       });
       this.on('listeningChange.konva', function() {
-        that._clearSelfAndDescendantCache(LISTENING);
+        this._clearSelfAndDescendantCache(LISTENING);
       });
       this.on('opacityChange.konva', function() {
-        that._clearSelfAndDescendantCache(ABSOLUTE_OPACITY);
+        this._clearSelfAndDescendantCache(ABSOLUTE_OPACITY);
       });
     },
     _clearCache: function(attr) {
@@ -2517,12 +2703,9 @@
         drawBorder = conf.drawBorder || false;
 
       if (!width || !height) {
-        // make throw async, because we don't need to stop funcion
-        setTimeout(function() {
-          Konva.Util.throw(
-            'Width or height of caching configuration equals 0. Caching is ignored.'
-          );
-        });
+        Konva.Util.error(
+          'Can not cache the node. Width or height of the node equals 0. Caching is skipped.'
+        );
         return;
       }
 
@@ -2748,11 +2931,11 @@
     },
     /**
      * bind events to the node. KonvaJS supports mouseover, mousemove,
-     *  mouseout, mouseenter, mouseleave, mousedown, mouseup, wheel, click, dblclick, touchstart, touchmove,
+     *  mouseout, mouseenter, mouseleave, mousedown, mouseup, wheel, contextmenu, click, dblclick, touchstart, touchmove,
      *  touchend, tap, dbltap, dragstart, dragmove, and dragend events. The Konva Stage supports
      *  contentMouseover, contentMousemove, contentMouseout, contentMousedown, contentMouseup, contentWheel, contentContextmenu
      *  contentClick, contentDblclick, contentTouchstart, contentTouchmove, contentTouchend, contentTap,
-     *  and contentDblTap.  Pass in a string of events delimmited by a space to bind multiple events at once
+     *  and contentDblTap.  Pass in a string of events delimited by a space to bind multiple events at once
      *  such as 'mousedown mouseup mousemove'. Include a namespace to bind an
      *  event by name such as 'click.foobar'.
      * @method
@@ -2934,7 +3117,7 @@
       });
     },
     /**
-     * remove self from parent, but don't destroy
+     * remove self from parent, but don't destroy. You can reuse node later.
      * @method
      * @memberof Konva.Node.prototype
      * @returns {Konva.Node}
@@ -2961,7 +3144,7 @@
       return this;
     },
     /**
-     * remove and destroy self
+     * remove and destroy a node. Kill it forever! You should not reuse node after destroy().
      * @method
      * @memberof Konva.Node.prototype
      * @example
@@ -3100,24 +3283,24 @@
       }
     },
     /**
-         * determine if node is visible by taking into account ancestors.
-         *
-         * Parent    | Self      | isVisible
-         * visible   | visible   |
-         * ----------+-----------+------------
-         * T         | T         | T
-         * T         | F         | F
-         * F         | T         | T
-         * F         | F         | F
-         * ----------+-----------+------------
-         * T         | I         | T
-         * F         | I         | F
-         * I         | I         | T
+     * determine if node is visible by taking into account ancestors.
+     *
+     * Parent    | Self      | isVisible
+     * visible   | visible   |
+     * ----------+-----------+------------
+     * T         | T         | T
+     * T         | F         | F
+     * F         | T         | T
+     * F         | F         | F
+     * ----------+-----------+------------
+     * T         | I         | T
+     * F         | I         | F
+     * I         | I         | T
 
-         * @method
-         * @memberof Konva.Node.prototype
-         * @returns {Boolean}
-         */
+      * @method
+      * @memberof Konva.Node.prototype
+      * @returns {Boolean}
+      */
     isVisible: function() {
       return this._getCache(VISIBLE, this._isVisible);
     },
@@ -3389,7 +3572,7 @@
       // func with this because it will be the only node
       if (top && top._id === this._id) {
         func(this);
-        return true;
+        return;
       }
 
       family.unshift(this);
@@ -3568,7 +3751,7 @@
 
       for (key in attrs) {
         val = attrs[key];
-        getter = this[key];
+        getter = typeof this[key] === 'function' && this[key];
         // remove attr value so that we can extract the default value from the getter
         delete attrs[key];
         defaultValue = getter ? getter.call(this) : null;
@@ -3764,19 +3947,19 @@
       }
     },
     _getAbsoluteTransform: function(top) {
-      var at = new Konva.Transform(),
-        transformsEnabled,
-        trans;
+      var at = new Konva.Transform();
 
       // start with stage and traverse downwards to self
       this._eachAncestorReverse(function(node) {
-        transformsEnabled = node.transformsEnabled();
-        trans = node.getTransform();
+        var transformsEnabled = node.transformsEnabled();
 
         if (transformsEnabled === 'all') {
-          at.multiply(trans);
+          at.multiply(node.getTransform());
         } else if (transformsEnabled === 'position') {
-          at.translate(node.x(), node.y());
+          at.translate(
+            node.getX() - node.getOffsetX(),
+            node.getY() - node.getOffsetY()
+          );
         }
       }, top);
       return at;
@@ -3919,17 +4102,16 @@
     _toKonvaCanvas: function(config) {
       config = config || {};
 
+      var box = this.getClientRect();
+
       var stage = this.getStage(),
-        x = config.x || 0,
-        y = config.y || 0,
+        x = config.x !== undefined ? config.x : box.x,
+        y = config.y !== undefined ? config.y : box.y,
         pixelRatio = config.pixelRatio || 1,
         canvas = new Konva.SceneCanvas({
-          width:
-            config.width || this.getWidth() || (stage ? stage.getWidth() : 0),
+          width: config.width || box.width || (stage ? stage.getWidth() : 0),
           height:
-            config.height ||
-            this.getHeight() ||
-            (stage ? stage.getHeight() : 0),
+            config.height || box.height || (stage ? stage.getHeight() : 0),
           pixelRatio: pixelRatio
         }),
         context = canvas.getContext();
@@ -3978,14 +4160,18 @@
      * @param {Number} [config.quality] jpeg quality.  If using an "image/jpeg" mimeType,
      *  you can specify the quality from 0 to 1, where 0 is very poor quality and 1
      *  is very high quality
-     * @paremt {Number} [config.pixelRatio] pixelRatio of ouput image url. Default is 1
+     * @param {Number} [config.pixelRatio] pixelRatio of output image url. Default is 1
      * @returns {String}
      */
     toDataURL: function(config) {
       config = config || {};
       var mimeType = config.mimeType || null,
         quality = config.quality || null;
-      return this._toKonvaCanvas(config).toDataURL(mimeType, quality);
+      var url = this._toKonvaCanvas(config).toDataURL(mimeType, quality);
+      if (config.callback) {
+        config.callback(url);
+      }
+      return url;
     },
     /**
      * converts node into an image.  Since the toImage
@@ -4016,8 +4202,10 @@
       if (!config || !config.callback) {
         throw 'callback required for toImage method config argument';
       }
+      var callback = config.callback;
+      delete config.callback;
       Konva.Util._getImage(this.toDataURL(config), function(img) {
-        config.callback(img);
+        callback(img);
       });
     },
     setSize: function(size) {
@@ -4216,7 +4404,8 @@
     _setAttr: function(key, val) {
       var oldVal;
       oldVal = this.attrs[key];
-      if (oldVal === val) {
+      var same = oldVal === val;
+      if (same && !Konva.Util.isObject(val)) {
         return;
       }
       if (val === undefined || val === null) {
@@ -4323,7 +4512,7 @@
    *  shape drawing functions, images, or event handlers (this would make the
    *  serialized object huge).  If your app uses custom shapes, images, and
    *  event handlers (it probably does), then you need to select the appropriate
-   *  shapes after loading the stage and set these properties via on(), setDrawFunc(),
+   *  shapes after loading the stage and set these properties via on(), setSceneFunc(),
    *  and setImage() methods
    * @method
    * @memberof Konva.Node
@@ -4383,7 +4572,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'x', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'x',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set x position
@@ -4400,7 +4594,12 @@
    * node.x(5);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'y', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'y',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set y position
@@ -4420,7 +4619,8 @@
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'globalCompositeOperation',
-    'source-over'
+    'source-over',
+    Konva.Validators.getStringValidator()
   );
 
   /**
@@ -4428,16 +4628,21 @@
    * @name globalCompositeOperation
    * @method
    * @memberof Konva.Node.prototype
-   * @param {Number} blur
-   * @returns {Number}
+   * @param {String} type
+   * @returns {String}
    * @example
-   * // get shadow blur
+   * // get globalCompositeOperation
    * var globalCompositeOperation = shape.globalCompositeOperation();
    *
-   * // set shadow blur
+   * // set globalCompositeOperation
    * shape.globalCompositeOperation('source-in');
    */
-  Konva.Factory.addGetterSetter(Konva.Node, 'opacity', 1);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'opacity',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set opacity.  Opacity values range from 0 to 1.
@@ -4495,7 +4700,12 @@
    * node.id('foo');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'rotation', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'rotation',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set rotation in degrees
@@ -4534,7 +4744,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'scaleX', 1);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'scaleX',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set scale x
@@ -4551,7 +4766,12 @@
    * node.scaleX(2);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'scaleY', 1);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'scaleY',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set scale y
@@ -4590,7 +4810,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'skewX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'skewX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set skew x
@@ -4607,7 +4832,12 @@
    * node.skewX(3);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'skewY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'skewY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set skew y
@@ -4645,7 +4875,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'offsetX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'offsetX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set offset x
@@ -4662,7 +4897,12 @@
    * node.offsetX(3);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'offsetY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'offsetY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set offset y
@@ -4679,7 +4919,11 @@
    * node.offsetY(3);
    */
 
-  Konva.Factory.addSetter(Konva.Node, 'dragDistance');
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'dragDistance',
+    Konva.Validators.getNumberValidator()
+  );
   Konva.Factory.addOverloadedGetterSetter(Konva.Node, 'dragDistance');
 
   /**
@@ -4700,7 +4944,11 @@
    * Konva.dragDistance = 3;
    */
 
-  Konva.Factory.addSetter(Konva.Node, 'width', 0);
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'width',
+    Konva.Validators.getNumberValidator()
+  );
   Konva.Factory.addOverloadedGetterSetter(Konva.Node, 'width');
   /**
    * get/set width
@@ -4717,7 +4965,11 @@
    * node.width(100);
    */
 
-  Konva.Factory.addSetter(Konva.Node, 'height', 0);
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'height',
+    Konva.Validators.getNumberValidator()
+  );
   Konva.Factory.addOverloadedGetterSetter(Konva.Node, 'height');
   /**
    * get/set height
@@ -4734,7 +4986,18 @@
    * node.height(100);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'listening', 'inherit');
+  Konva.Factory.addGetterSetter(Konva.Node, 'listening', 'inherit', function(
+    val
+  ) {
+    var isValid = val === true || val === false || val === 'inherit';
+    if (!isValid) {
+      Konva.Util.warn(
+        val +
+          ' is a not valid value for "listening" attribute. The value may be true, false or "inherit".'
+      );
+    }
+    return val;
+  });
   /**
    * get/set listenig attr.  If you need to determine if a node is listening or not
    *   by taking into account its parents, use the isListening() method
@@ -4777,11 +5040,14 @@
    * shape.preventDefault(false);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'preventDefault', true);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'preventDefault',
+    true,
+    Konva.Validators.getBooleanValidator()
+  );
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'filters', undefined, function(
-    val
-  ) {
+  Konva.Factory.addGetterSetter(Konva.Node, 'filters', null, function(val) {
     this._filterUpToDate = false;
     return val;
   });
@@ -4809,7 +5075,18 @@
    * ]);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'visible', 'inherit');
+  Konva.Factory.addGetterSetter(Konva.Node, 'visible', 'inherit', function(
+    val
+  ) {
+    var isValid = val === true || val === false || val === 'inherit';
+    if (!isValid) {
+      Konva.Util.warn(
+        val +
+          ' is a not valid value for "visible" attribute. The value may be true, false or "inherit".'
+      );
+    }
+    return val;
+  });
   /**
    * get/set visible attr.  Can be "inherit", true, or false.  The default is "inherit".
    *   If you need to determine if a node is visible or not
@@ -4833,7 +5110,12 @@
    * node.visible('inherit');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Node, 'transformsEnabled', 'all');
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'transformsEnabled',
+    'all',
+    Konva.Validators.getStringValidator()
+  );
 
   /**
    * get/set transforms that are enabled.  Can be "all", "none", or "position".  The default
@@ -4886,16 +5168,19 @@
 (function() {
   'use strict';
   /**
-    * Grayscale Filter
-    * @function
-    * @memberof Konva.Filters
-    * @param {Object} imageData
-    * @example
-    * node.cache();
-    * node.filters([Konva.Filters.Grayscale]);
-    */
+   * Grayscale Filter
+   * @function
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Grayscale]);
+   */
   Konva.Filters.Grayscale = function(imageData) {
-    var data = imageData.data, len = data.length, i, brightness;
+    var data = imageData.data,
+      len = data.length,
+      i,
+      brightness;
 
     for (i = 0; i < len; i += 4) {
       brightness = 0.34 * data[i] + 0.5 * data[i + 1] + 0.16 * data[i + 2];
@@ -4912,15 +5197,15 @@
 (function(Konva) {
   'use strict';
   /**
-     * Brighten Filter.
-     * @function
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Brighten]);
-     * node.brightness(0.8);
-     */
+   * Brighten Filter.
+   * @function
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Brighten]);
+   * node.brightness(0.8);
+   */
   Konva.Filters.Brighten = function(imageData) {
     var brightness = this.brightness() * 255,
       data = imageData.data,
@@ -4941,33 +5226,35 @@
     Konva.Node,
     'brightness',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set filter brightness.  The brightness is a number between -1 and 1.&nbsp; Positive values
-    *  brighten the pixels and negative values darken them. Use with {@link Konva.Filters.Brighten} filter.
-    * @name brightness
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} brightness value between -1 and 1
-    * @returns {Number}
-    */
+   * get/set filter brightness.  The brightness is a number between -1 and 1.&nbsp; Positive values
+   *  brighten the pixels and negative values darken them. Use with {@link Konva.Filters.Brighten} filter.
+   * @name brightness
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} brightness value between -1 and 1
+   * @returns {Number}
+   */
 })(Konva);
 
 (function() {
   'use strict';
   /**
-    * Invert Filter
-    * @function
-    * @memberof Konva.Filters
-    * @param {Object} imageData
-    * @example
-    * node.cache();
-    * node.filters([Konva.Filters.Invert]);
-    */
+   * Invert Filter
+   * @function
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Invert]);
+   */
   Konva.Filters.Invert = function(imageData) {
-    var data = imageData.data, len = data.length, i;
+    var data = imageData.data,
+      len = data.length,
+      i;
 
     for (i = 0; i < len; i += 4) {
       // red
@@ -5799,16 +6086,16 @@
   }
 
   /**
-     * Blur Filter
-     * @function
-     * @name Blur
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Blur]);
-     * node.blurRadius(10);
-     */
+   * Blur Filter
+   * @function
+   * @name Blur
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Blur]);
+   * node.blurRadius(10);
+   */
   Konva.Filters.Blur = function Blur(imageData) {
     var radius = Math.round(this.blurRadius());
 
@@ -5821,18 +6108,18 @@
     Konva.Node,
     'blurRadius',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
 
   /**
-    * get/set blur radius. Use with {@link Konva.Filters.Blur} filter
-    * @name blurRadius
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} radius
-    * @returns {Integer}
-    */
+   * get/set blur radius. Use with {@link Konva.Filters.Blur} filter
+   * @name blurRadius
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} radius
+   * @returns {Integer}
+   */
 })(Konva);
 
 /*eslint-disable  max-depth */
@@ -6015,16 +6302,16 @@
   }
 
   /**
-	 * Mask Filter
-	 * @function
-	 * @name Mask
-	 * @memberof Konva.Filters
-	 * @param {Object} imageData
-	 * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Mask]);
-     * node.threshold(200);
-	 */
+   * Mask Filter
+   * @function
+   * @name Mask
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Mask]);
+   * node.threshold(200);
+   */
   Konva.Filters.Mask = function(imageData) {
     // Detect pixels close to the background color
     var threshold = this.threshold(),
@@ -6052,7 +6339,7 @@
     Konva.Node,
     'threshold',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
 })();
@@ -6060,18 +6347,18 @@
 (function() {
   'use strict';
   /**
-     * RGB Filter
-     * @function
-     * @name RGB
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @author ippo615
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.RGB]);
-     * node.blue(120);
-     * node.green(200);
-     */
+   * RGB Filter
+   * @function
+   * @name RGB
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.RGB]);
+   * node.blue(120);
+   * node.green(200);
+   */
   Konva.Filters.RGB = function(imageData) {
     var data = imageData.data,
       nPixels = data.length,
@@ -6102,13 +6389,13 @@
     }
   });
   /**
-    * get/set filter red value. Use with {@link Konva.Filters.RGB} filter.
-    * @name red
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} red value between 0 and 255
-    * @returns {Integer}
-    */
+   * get/set filter red value. Use with {@link Konva.Filters.RGB} filter.
+   * @name red
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} red value between 0 and 255
+   * @returns {Integer}
+   */
 
   Konva.Factory.addGetterSetter(Konva.Node, 'green', 0, function(val) {
     this._filterUpToDate = false;
@@ -6121,13 +6408,13 @@
     }
   });
   /**
-    * get/set filter green value. Use with {@link Konva.Filters.RGB} filter.
-    * @name green
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} green value between 0 and 255
-    * @returns {Integer}
-    */
+   * get/set filter green value. Use with {@link Konva.Filters.RGB} filter.
+   * @name green
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} green value between 0 and 255
+   * @returns {Integer}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
@@ -6137,31 +6424,31 @@
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set filter blue value. Use with {@link Konva.Filters.RGB} filter.
-    * @name blue
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} blue value between 0 and 255
-    * @returns {Integer}
-    */
+   * get/set filter blue value. Use with {@link Konva.Filters.RGB} filter.
+   * @name blue
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} blue value between 0 and 255
+   * @returns {Integer}
+   */
 })();
 
 (function() {
   'use strict';
   /**
-     * RGBA Filter
-     * @function
-     * @name RGBA
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @author codefo
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.RGBA]);
-     * node.blue(120);
-     * node.green(200);
-     * node.alpha(0.3);
-     */
+   * RGBA Filter
+   * @function
+   * @name RGBA
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author codefo
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.RGBA]);
+   * node.blue(120);
+   * node.green(200);
+   * node.alpha(0.3);
+   */
   Konva.Filters.RGBA = function(imageData) {
     var data = imageData.data,
       nPixels = data.length,
@@ -6192,13 +6479,13 @@
     }
   });
   /**
-    * get/set filter red value. Use with {@link Konva.Filters.RGBA} filter.
-    * @name red
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} red value between 0 and 255
-    * @returns {Integer}
-    */
+   * get/set filter red value. Use with {@link Konva.Filters.RGBA} filter.
+   * @name red
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} red value between 0 and 255
+   * @returns {Integer}
+   */
 
   Konva.Factory.addGetterSetter(Konva.Node, 'green', 0, function(val) {
     this._filterUpToDate = false;
@@ -6211,13 +6498,13 @@
     }
   });
   /**
-    * get/set filter green value. Use with {@link Konva.Filters.RGBA} filter.
-    * @name green
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} green value between 0 and 255
-    * @returns {Integer}
-    */
+   * get/set filter green value. Use with {@link Konva.Filters.RGBA} filter.
+   * @name green
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} green value between 0 and 255
+   * @returns {Integer}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
@@ -6227,13 +6514,13 @@
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set filter blue value. Use with {@link Konva.Filters.RGBA} filter.
-    * @name blue
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} blue value between 0 and 255
-    * @returns {Integer}
-    */
+   * get/set filter blue value. Use with {@link Konva.Filters.RGBA} filter.
+   * @name blue
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} blue value between 0 and 255
+   * @returns {Integer}
+   */
 
   Konva.Factory.addGetterSetter(Konva.Node, 'alpha', 1, function(val) {
     this._filterUpToDate = false;
@@ -6246,28 +6533,28 @@
     }
   });
   /**
-     * get/set filter alpha value. Use with {@link Konva.Filters.RGBA} filter.
-     * @name alpha
-     * @method
-     * @memberof Konva.Node.prototype
-     * @param {Float} alpha value between 0 and 1
-     * @returns {Float}
-     */
+   * get/set filter alpha value. Use with {@link Konva.Filters.RGBA} filter.
+   * @name alpha
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Float} alpha value between 0 and 1
+   * @returns {Float}
+   */
 })();
 
 (function() {
   'use strict';
   /**
-    * HSV Filter. Adjusts the hue, saturation and value
-    * @function
-    * @name HSV
-    * @memberof Konva.Filters
-    * @param {Object} imageData
-    * @author ippo615
-    * @example
-    * image.filters([Konva.Filters.HSV]);
-    * image.value(200);
-    */
+   * HSV Filter. Adjusts the hue, saturation and value
+   * @function
+   * @name HSV
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * image.filters([Konva.Filters.HSV]);
+   * image.value(200);
+   */
 
   Konva.Filters.HSV = function(imageData) {
     var data = imageData.data,
@@ -6293,14 +6580,14 @@
       vsw = v * s * Math.sin(h * Math.PI / 180);
     // (result spot)(source spot)
     var rr = 0.299 * v + 0.701 * vsu + 0.167 * vsw,
-      rg = 0.587 * v - 0.587 * vsu + 0.330 * vsw,
+      rg = 0.587 * v - 0.587 * vsu + 0.33 * vsw,
       rb = 0.114 * v - 0.114 * vsu - 0.497 * vsw;
     var gr = 0.299 * v - 0.299 * vsu - 0.328 * vsw,
       gg = 0.587 * v + 0.413 * vsu + 0.035 * vsw,
       gb = 0.114 * v - 0.114 * vsu + 0.293 * vsw;
-    var br = 0.299 * v - 0.300 * vsu + 1.250 * vsw,
-      bg = 0.587 * v - 0.586 * vsu - 1.050 * vsw,
-      bb = 0.114 * v + 0.886 * vsu - 0.200 * vsw;
+    var br = 0.299 * v - 0.3 * vsu + 1.25 * vsw,
+      bg = 0.587 * v - 0.586 * vsu - 1.05 * vsw,
+      bb = 0.114 * v + 0.886 * vsu - 0.2 * vsw;
 
     var r, g, b, a;
 
@@ -6321,49 +6608,49 @@
     Konva.Node,
     'hue',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set hsv hue in degrees. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
-    * @name hue
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} hue value between 0 and 359
-    * @returns {Number}
-    */
+   * get/set hsv hue in degrees. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+   * @name hue
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} hue value between 0 and 359
+   * @returns {Number}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'saturation',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set hsv saturation. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
-    * @name saturation
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} saturation 0 is no change, -1.0 halves the saturation, 1.0 doubles, etc..
-    * @returns {Number}
-    */
+   * get/set hsv saturation. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+   * @name saturation
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} saturation 0 is no change, -1.0 halves the saturation, 1.0 doubles, etc..
+   * @returns {Number}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'value',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set hsv value. Use with {@link Konva.Filters.HSV} filter.
-    * @name value
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} value 0 is no change, -1.0 halves the value, 1.0 doubles, etc..
-    * @returns {Number}
-    */
+   * get/set hsv value. Use with {@link Konva.Filters.HSV} filter.
+   * @name value
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} value 0 is no change, -1.0 halves the value, 1.0 doubles, etc..
+   * @returns {Number}
+   */
 })();
 
 (function() {
@@ -6372,60 +6659,60 @@
     Konva.Node,
     'hue',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set hsv hue in degrees. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
-    * @name hue
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} hue value between 0 and 359
-    * @returns {Number}
-    */
+   * get/set hsv hue in degrees. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+   * @name hue
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} hue value between 0 and 359
+   * @returns {Number}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'saturation',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set hsv saturation. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
-    * @name saturation
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} saturation 0 is no change, -1.0 halves the saturation, 1.0 doubles, etc..
-    * @returns {Number}
-    */
+   * get/set hsv saturation. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+   * @name saturation
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} saturation 0 is no change, -1.0 halves the saturation, 1.0 doubles, etc..
+   * @returns {Number}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'luminance',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set hsl luminance. Use with {@link Konva.Filters.HSL} filter.
-    * @name value
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} value 0 is no change, -1.0 halves the value, 1.0 doubles, etc..
-    * @returns {Number}
-    */
+   * get/set hsl luminance. Use with {@link Konva.Filters.HSL} filter.
+   * @name value
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} value from -1 to 1
+   * @returns {Number}
+   */
 
   /**
-    * HSL Filter. Adjusts the hue, saturation and luminance (or lightness)
-    * @function
-    * @memberof Konva.Filters
-    * @param {Object} imageData
-    * @author ippo615
-    * @example
-    * image.filters([Konva.Filters.HSL]);
-    * image.luminance(200);
-    */
+   * HSL Filter. Adjusts the hue, saturation and luminance (or lightness)
+   * @function
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * image.filters([Konva.Filters.HSL]);
+   * image.luminance(200);
+   */
 
   Konva.Filters.HSL = function(imageData) {
     var data = imageData.data,
@@ -6452,14 +6739,14 @@
       vsw = v * s * Math.sin(h * Math.PI / 180);
     // (result spot)(source spot)
     var rr = 0.299 * v + 0.701 * vsu + 0.167 * vsw,
-      rg = 0.587 * v - 0.587 * vsu + 0.330 * vsw,
+      rg = 0.587 * v - 0.587 * vsu + 0.33 * vsw,
       rb = 0.114 * v - 0.114 * vsu - 0.497 * vsw;
     var gr = 0.299 * v - 0.299 * vsu - 0.328 * vsw,
       gg = 0.587 * v + 0.413 * vsu + 0.035 * vsw,
       gb = 0.114 * v - 0.114 * vsu + 0.293 * vsw;
-    var br = 0.299 * v - 0.300 * vsu + 1.250 * vsw,
-      bg = 0.587 * v - 0.586 * vsu - 1.050 * vsw,
-      bb = 0.114 * v + 0.886 * vsu - 0.200 * vsw;
+    var br = 0.299 * v - 0.3 * vsu + 1.25 * vsw,
+      bg = 0.587 * v - 0.586 * vsu - 1.05 * vsw,
+      bb = 0.114 * v + 0.886 * vsu - 0.2 * vsw;
 
     var r, g, b, a;
 
@@ -6480,21 +6767,21 @@
 (function() {
   'use strict';
   /**
-     * Emboss Filter.
-     * Pixastic Lib - Emboss filter - v0.1.0
-     * Copyright (c) 2008 Jacob Seidelin, jseidelin@nihilogic.dk, http://blog.nihilogic.dk/
-     * License: [http://www.pixastic.com/lib/license.txt]
-     * @function
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Emboss]);
-     * node.embossStrength(0.8);
-     * node.embossWhiteLevel(0.3);
-     * node.embossDirection('right');
-     * node.embossBlend(true);
-     */
+   * Emboss Filter.
+   * Pixastic Lib - Emboss filter - v0.1.0
+   * Copyright (c) 2008 Jacob Seidelin, jseidelin@nihilogic.dk, http://blog.nihilogic.dk/
+   * License: [http://www.pixastic.com/lib/license.txt]
+   * @function
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Emboss]);
+   * node.embossStrength(0.8);
+   * node.embossWhiteLevel(0.3);
+   * node.embossDirection('right');
+   * node.embossBlend(true);
+   */
   Konva.Filters.Emboss = function(imageData) {
     // pixastic strength is between 0 and 10.  I want it between 0 and 1
     // pixastic greyLevel is between 0 and 255.  I want it between 0 and 1.  Also,
@@ -6621,33 +6908,33 @@
     Konva.Node,
     'embossStrength',
     0.5,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set emboss strength. Use with {@link Konva.Filters.Emboss} filter.
-    * @name embossStrength
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} level between 0 and 1.  Default is 0.5
-    * @returns {Number}
-    */
+   * get/set emboss strength. Use with {@link Konva.Filters.Emboss} filter.
+   * @name embossStrength
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} level between 0 and 1.  Default is 0.5
+   * @returns {Number}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'embossWhiteLevel',
     0.5,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set emboss white level. Use with {@link Konva.Filters.Emboss} filter.
-    * @name embossWhiteLevel
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} embossWhiteLevel between 0 and 1.  Default is 0.5
-    * @returns {Number}
-    */
+   * get/set emboss white level. Use with {@link Konva.Filters.Emboss} filter.
+   * @name embossWhiteLevel
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} embossWhiteLevel between 0 and 1.  Default is 0.5
+   * @returns {Number}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
@@ -6657,14 +6944,14 @@
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set emboss direction. Use with {@link Konva.Filters.Emboss} filter.
-    * @name embossDirection
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {String} embossDirection can be top-left, top, top-right, right, bottom-right, bottom, bottom-left or left
-    *   The default is top-left
-    * @returns {String}
-    */
+   * get/set emboss direction. Use with {@link Konva.Filters.Emboss} filter.
+   * @name embossDirection
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {String} embossDirection can be top-left, top, top-right, right, bottom-right, bottom, bottom-left or left
+   *   The default is top-left
+   * @returns {String}
+   */
 
   Konva.Factory.addGetterSetter(
     Konva.Node,
@@ -6674,20 +6961,22 @@
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set emboss blend. Use with {@link Konva.Filters.Emboss} filter.
-    * @name embossBlend
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Boolean} embossBlend
-    * @returns {Boolean}
-    */
+   * get/set emboss blend. Use with {@link Konva.Filters.Emboss} filter.
+   * @name embossBlend
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Boolean} embossBlend
+   * @returns {Boolean}
+   */
 })();
 
 (function() {
   'use strict';
   function remap(fromValue, fromMin, fromMax, toMin, toMax) {
     // Compute the range of the data
-    var fromRange = fromMax - fromMin, toRange = toMax - toMin, toValue;
+    var fromRange = fromMax - fromMin,
+      toRange = toMax - toMin,
+      toValue;
 
     // If either range is 0, then the value can only be mapped to 1 value
     if (fromRange === 0) {
@@ -6705,19 +6994,19 @@
   }
 
   /**
-    * Enhance Filter. Adjusts the colors so that they span the widest
-    *  possible range (ie 0-255). Performs w*h pixel reads and w*h pixel
-    *  writes.
-    * @function
-    * @name Enhance
-    * @memberof Konva.Filters
-    * @param {Object} imageData
-    * @author ippo615
-    * @example
-    * node.cache();
-    * node.filters([Konva.Filters.Enhance]);
-    * node.enhance(0.4);
-    */
+   * Enhance Filter. Adjusts the colors so that they span the widest
+   *  possible range (ie 0-255). Performs w*h pixel reads and w*h pixel
+   *  writes.
+   * @function
+   * @name Enhance
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Enhance]);
+   * node.enhance(0.4);
+   */
   Konva.Filters.Enhance = function(imageData) {
     var data = imageData.data,
       nSubPixels = data.length,
@@ -6817,40 +7106,39 @@
     }
   };
 
+  /**
+   * get/set enhance. Use with {@link Konva.Filters.Enhance} filter. -1 to 1 values
+   * @name enhance
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Float} amount
+   * @returns {Float}
+   */
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'enhance',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
-
-  /**
-    * get/set enhance. Use with {@link Konva.Filters.Enhance} filter.
-    * @name enhance
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Float} amount
-    * @returns {Float}
-    */
 })();
 
 (function() {
   'use strict';
   /**
-     * Posterize Filter. Adjusts the channels so that there are no more
-     *  than n different values for that channel. This is also applied
-     *  to the alpha channel.
-     * @function
-     * @name Posterize
-     * @author ippo615
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Posterize]);
-     * node.levels(0.8); // between 0 and 1
-     */
+   * Posterize Filter. Adjusts the channels so that there are no more
+   *  than n different values for that channel. This is also applied
+   *  to the alpha channel.
+   * @function
+   * @name Posterize
+   * @author ippo615
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Posterize]);
+   * node.levels(0.8); // between 0 and 1
+   */
 
   Konva.Filters.Posterize = function(imageData) {
     // level must be between 1 and 255
@@ -6869,34 +7157,34 @@
     Konva.Node,
     'levels',
     0.5,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
 
   /**
-    * get/set levels.  Must be a number between 0 and 1.  Use with {@link Konva.Filters.Posterize} filter.
-    * @name levels
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} level between 0 and 1
-    * @returns {Number}
-    */
+   * get/set levels.  Must be a number between 0 and 1.  Use with {@link Konva.Filters.Posterize} filter.
+   * @name levels
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} level between 0 and 1
+   * @returns {Number}
+   */
 })();
 
 (function() {
   'use strict';
   /**
-     * Noise Filter. Randomly adds or substracts to the color channels
-     * @function
-     * @name Noise
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @author ippo615
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Noise]);
-     * node.noise(0.8);
-     */
+   * Noise Filter. Randomly adds or substracts to the color channels
+   * @function
+   * @name Noise
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Noise]);
+   * node.noise(0.8);
+   */
   Konva.Filters.Noise = function(imageData) {
     var amount = this.noise() * 255,
       data = imageData.data,
@@ -6915,35 +7203,35 @@
     Konva.Node,
     'noise',
     0.2,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set noise amount.  Must be a value between 0 and 1. Use with {@link Konva.Filters.Noise} filter.
-    * @name noise
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} noise
-    * @returns {Number}
-    */
+   * get/set noise amount.  Must be a value between 0 and 1. Use with {@link Konva.Filters.Noise} filter.
+   * @name noise
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} noise
+   * @returns {Number}
+   */
 })();
 
 /*eslint-disable max-depth */
 (function() {
   'use strict';
   /**
-     * Pixelate Filter. Averages groups of pixels and redraws
-     *  them as larger pixels
-     * @function
-     * @name Pixelate
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @author ippo615
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Pixelate]);
-     * node.pixelSize(10);
-     */
+   * Pixelate Filter. Averages groups of pixels and redraws
+   *  them as larger pixels
+   * @function
+   * @name Pixelate
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Pixelate]);
+   * node.pixelSize(10);
+   */
 
   Konva.Filters.Pixelate = function(imageData) {
     var pixelSize = Math.ceil(this.pixelSize()),
@@ -7036,35 +7324,35 @@
     Konva.Node,
     'pixelSize',
     8,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set pixel size. Use with {@link Konva.Filters.Pixelate} filter.
-    * @name pixelSize
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} pixelSize
-    * @returns {Integer}
-    */
+   * get/set pixel size. Use with {@link Konva.Filters.Pixelate} filter.
+   * @name pixelSize
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} pixelSize
+   * @returns {Integer}
+   */
 })();
 
 (function() {
   'use strict';
   /**
-     * Threshold Filter. Pushes any value above the mid point to
-     *  the max and any value below the mid point to the min.
-     *  This affects the alpha channel.
-     * @function
-     * @name Threshold
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @author ippo615
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Threshold]);
-     * node.threshold(0.1);
-     */
+   * Threshold Filter. Pushes any value above the mid point to
+   *  the max and any value below the mid point to the min.
+   *  This affects the alpha channel.
+   * @function
+   * @name Threshold
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author ippo615
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Threshold]);
+   * node.threshold(0.1);
+   */
 
   Konva.Filters.Threshold = function(imageData) {
     var level = this.threshold() * 255,
@@ -7081,35 +7369,35 @@
     Konva.Node,
     'threshold',
     0.5,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
   /**
-    * get/set threshold.  Must be a value between 0 and 1. Use with {@link Konva.Filters.Threshold} or {@link Konva.Filters.Mask} filter.
-    * @name threshold
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Number} threshold
-    * @returns {Number}
-    */
+   * get/set threshold.  Must be a value between 0 and 1. Use with {@link Konva.Filters.Threshold} or {@link Konva.Filters.Mask} filter.
+   * @name threshold
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Number} threshold
+   * @returns {Number}
+   */
 })();
 
 (function() {
   'use strict';
   /**
-     * Sepia Filter
-     * Based on: Pixastic Lib - Sepia filter - v0.1.0
-     * Copyright (c) 2008 Jacob Seidelin, jseidelin@nihilogic.dk, http://blog.nihilogic.dk/
-     * @function
-     * @name Sepia
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @author Jacob Seidelin <jseidelin@nihilogic.dk>
-     * @license MPL v1.1 [http://www.pixastic.com/lib/license.txt]
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Sepia]);
-     */
+   * Sepia Filter
+   * Based on: Pixastic Lib - Sepia filter - v0.1.0
+   * Copyright (c) 2008 Jacob Seidelin, jseidelin@nihilogic.dk, http://blog.nihilogic.dk/
+   * @function
+   * @name Sepia
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @author Jacob Seidelin <jseidelin@nihilogic.dk>
+   * @license MPL v1.1 [http://www.pixastic.com/lib/license.txt]
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Sepia]);
+   */
   Konva.Filters.Sepia = function(imageData) {
     var data = imageData.data,
       w = imageData.width,
@@ -7151,18 +7439,18 @@
 (function() {
   'use strict';
   /**
-     * Solarize Filter
-     * Pixastic Lib - Solarize filter - v0.1.0
-     * Copyright (c) 2008 Jacob Seidelin, jseidelin@nihilogic.dk, http://blog.nihilogic.dk/
-     * License: [http://www.pixastic.com/lib/license.txt]
-     * @function
-     * @name Solarize
-     * @memberof Konva.Filters
-     * @param {Object} imageData
-     * @example
-     * node.cache();
-     * node.filters([Konva.Filters.Solarize]);
-     */
+   * Solarize Filter
+   * Pixastic Lib - Solarize filter - v0.1.0
+   * Copyright (c) 2008 Jacob Seidelin, jseidelin@nihilogic.dk, http://blog.nihilogic.dk/
+   * License: [http://www.pixastic.com/lib/license.txt]
+   * @function
+   * @name Solarize
+   * @memberof Konva.Filters
+   * @param {Object} imageData
+   * @example
+   * node.cache();
+   * node.filters([Konva.Filters.Solarize]);
+   */
   Konva.Filters.Solarize = function(imageData) {
     var data = imageData.data,
       w = imageData.width,
@@ -7462,39 +7750,39 @@
   };
 
   /**
-    * get/set kaleidoscope power. Use with {@link Konva.Filters.Kaleidoscope} filter.
-    * @name kaleidoscopePower
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} power of kaleidoscope
-    * @returns {Integer}
-    */
+   * get/set kaleidoscope power. Use with {@link Konva.Filters.Kaleidoscope} filter.
+   * @name kaleidoscopePower
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} power of kaleidoscope
+   * @returns {Integer}
+   */
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'kaleidoscopePower',
     2,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
 
   /**
-    * get/set kaleidoscope angle. Use with {@link Konva.Filters.Kaleidoscope} filter.
-    * @name kaleidoscopeAngle
-    * @method
-    * @memberof Konva.Node.prototype
-    * @param {Integer} degrees
-    * @returns {Integer}
-    */
+   * get/set kaleidoscope angle. Use with {@link Konva.Filters.Kaleidoscope} filter.
+   * @name kaleidoscopeAngle
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Integer} degrees
+   * @returns {Integer}
+   */
   Konva.Factory.addGetterSetter(
     Konva.Node,
     'kaleidoscopeAngle',
     0,
-    null,
+    Konva.Validators.getNumberValidator(),
     Konva.Factory.afterSetFilter
   );
 })();
 
-(function (Konva) {
+(function(Konva) {
   'use strict';
   /**
    * Contrast Filter.
@@ -7507,7 +7795,7 @@
    * node.contrast(10);
    */
 
-  Konva.Filters.Contrast = function (imageData) {
+  Konva.Filters.Contrast = function(imageData) {
     var adjust = Math.pow((parseInt(this.contrast()) + 100) / 100, 2);
 
     var data = imageData.data,
@@ -7543,9 +7831,9 @@
       blue += 0.5;
       blue *= 255;
 
-      red = (red < 0 ? 0 : (red > 255 ? 255 : red));
-      green = (green < 0 ? 0 : (green > 255 ? 255 : green));
-      blue = (blue < 0 ? 0 : (blue > 255 ? 255 : blue));
+      red = red < 0 ? 0 : red > 255 ? 255 : red;
+      green = green < 0 ? 0 : green > 255 ? 255 : green;
+      blue = blue < 0 ? 0 : blue > 255 ? 255 : blue;
 
       data[i] = red;
       data[i + 1] = green;
@@ -7562,19 +7850,25 @@
    * @param {Number} contrast value between -100 and 100
    * @returns {Number}
    */
-  Konva.Factory.addGetterSetter(Konva.Node, 'contrast', 0, null, Konva.Factory.afterSetFilter);
+  Konva.Factory.addGetterSetter(
+    Konva.Node,
+    'contrast',
+    0,
+    Konva.Validators.getNumberValidator(),
+    Konva.Factory.afterSetFilter
+  );
 })(Konva);
 
 (function() {
   'use strict';
   /**
-     * Container constructor.&nbsp; Containers are used to contain nodes or other containers
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Node
-     * @abstract
-     * @param {Object} config
-     * @param {Number} [config.x]
+   * Container constructor.&nbsp; Containers are used to contain nodes or other containers
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Node
+   * @abstract
+   * @param {Object} config
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -7594,14 +7888,14 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * * @param {Object} [config.clip] set clip
+   * * @param {Object} [config.clip] set clip
      * @param {Number} [config.clipX] set clip x
      * @param {Number} [config.clipY] set clip y
      * @param {Number} [config.clipWidth] set clip width
      * @param {Number} [config.clipHeight] set clip height
      * @param {Function} [config.clipFunc] set clip func
 
-     */
+   */
   Konva.Container = function(config) {
     this.__init(config);
   };
@@ -7612,20 +7906,20 @@
       Konva.Node.call(this, config);
     },
     /**
-         * returns a {@link Konva.Collection} of direct descendant nodes
-         * @method
-         * @memberof Konva.Container.prototype
-         * @param {Function} [filterFunc] filter function
-         * @returns {Konva.Collection}
-         * @example
-         * // get all children
-         * var children = layer.getChildren();
-         *
-         * // get only circles
-         * var circles = layer.getChildren(function(node){
-         *    return node.getClassName() === 'Circle';
-         * });
-         */
+     * returns a {@link Konva.Collection} of direct descendant nodes
+     * @method
+     * @memberof Konva.Container.prototype
+     * @param {Function} [filterFunc] filter function
+     * @returns {Konva.Collection}
+     * @example
+     * // get all children
+     * var children = layer.getChildren();
+     *
+     * // get only circles
+     * var circles = layer.getChildren(function(node){
+     *    return node.getClassName() === 'Circle';
+     * });
+     */
     getChildren: function(filterFunc) {
       if (!filterFunc) {
         return this.children;
@@ -7640,19 +7934,19 @@
       return results;
     },
     /**
-         * determine if node has children
-         * @method
-         * @memberof Konva.Container.prototype
-         * @returns {Boolean}
-         */
+     * determine if node has children
+     * @method
+     * @memberof Konva.Container.prototype
+     * @returns {Boolean}
+     */
     hasChildren: function() {
       return this.getChildren().length > 0;
     },
     /**
-         * remove all children
-         * @method
-         * @memberof Konva.Container.prototype
-         */
+     * remove all children
+     * @method
+     * @memberof Konva.Container.prototype
+     */
     removeChildren: function() {
       var children = Konva.Collection.toCollection(this.children);
       var child;
@@ -7668,10 +7962,10 @@
       return this;
     },
     /**
-         * destroy all children
-         * @method
-         * @memberof Konva.Container.prototype
-         */
+     * destroy all children
+     * @method
+     * @memberof Konva.Container.prototype
+     */
     destroyChildren: function() {
       var children = Konva.Collection.toCollection(this.children);
       var child;
@@ -7687,14 +7981,14 @@
       return this;
     },
     /**
-         * Add node or nodes to container.
-         * @method
-         * @memberof Konva.Container.prototype
-         * @param {...Konva.Node} child
-         * @returns {Container}
-         * @example
-         * layer.add(shape1, shape2, shape3);
-         */
+     * Add node or nodes to container.
+     * @method
+     * @memberof Konva.Container.prototype
+     * @param {...Konva.Node} child
+     * @returns {Container}
+     * @example
+     * layer.add(shape1, shape2, shape3);
+     */
     add: function(child) {
       if (arguments.length > 1) {
         for (var i = 0; i < arguments.length; i++) {
@@ -7733,30 +8027,84 @@
       return this;
     },
     /**
-         * return a {@link Konva.Collection} of nodes that match the selector.  Use '#' for id selections
-         * and '.' for name selections.  You can also select by type or class name. Pass multiple selectors
-         * separated by a space.
-         * @method
-         * @memberof Konva.Container.prototype
-         * @param {String} selector
-         * @returns {Collection}
-         * @example
-         * // select node with id foo
-         * var node = stage.find('#foo');
-         *
-         * // select nodes with name bar inside layer
-         * var nodes = layer.find('.bar');
-         *
-         * // select all groups inside layer
-         * var nodes = layer.find('Group');
-         *
-         * // select all rectangles inside layer
-         * var nodes = layer.find('Rect');
-         *
-         * // select node with an id of foo or a name of bar inside layer
-         * var nodes = layer.find('#foo, .bar');
-         */
+     * return a {@link Konva.Collection} of nodes that match the selector.
+     * You can provide a string with '#' for id selections and '.' for name selections.
+     * Or a function that will return true/false when a node is passed through.  See example below.
+     * With strings you can also select by type or class name. Pass multiple selectors
+     * separated by a space.
+     * @method
+     * @memberof Konva.Container.prototype
+     * @param {String | Function} selector
+     * @returns {Collection}
+     * @example
+     *
+     * Passing a string as a selector
+     * // select node with id foo
+     * var node = stage.find('#foo');
+     *
+     * // select nodes with name bar inside layer
+     * var nodes = layer.find('.bar');
+     *
+     * // select all groups inside layer
+     * var nodes = layer.find('Group');
+     *
+     * // select all rectangles inside layer
+     * var nodes = layer.find('Rect');
+     *
+     * // select node with an id of foo or a name of bar inside layer
+     * var nodes = layer.find('#foo, .bar');
+     *
+     * Passing a function as a selector
+     *
+     * // get all Groups
+     * var groups = stage.find(node => {
+     *  return node.getType() === 'Group';
+     * });
+     *
+     * // get only Nodes with partial opacity
+     * var alphaNodes = layer.find(node => {
+     *  return node.getType() === 'Node' && node.getAbsoluteOpacity() < 1;
+     * });
+     */
     find: function(selector) {
+      // protecting _generalFind to prevent user from accidentally adding
+      // second argument and getting unexpected `findOne` result
+      return this._generalFind(selector, false);
+    },
+    /**
+     * return a first node from `find` method
+     * @method
+     * @memberof Konva.Container.prototype
+     * @param {String | Function} selector
+     * @returns {Konva.Node | Undefined}
+     * @example
+     * // select node with id foo
+     * var node = stage.findOne('#foo');
+     *
+     * // select node with name bar inside layer
+     * var nodes = layer.findOne('.bar');
+     *
+     * // select the first node to return true in a function
+     * var node = stage.findOne(node => {
+     *  return node.getType() === 'Shape'
+     * })
+     */
+    findOne: function(selector) {
+      var result = this._generalFind(selector, true);
+      return result.length > 0 ? result[0] : undefined;
+    },
+    _generalFind: function(selector, findOne) {
+      var retArr = [];
+
+      if (typeof selector === 'string') {
+        retArr = this._findByString(selector, findOne);
+      } else if (typeof selector === 'function') {
+        retArr = this._findByFunction(selector, findOne);
+      }
+
+      return Konva.Collection.toCollection(retArr);
+    },
+    _findByString: function(selector) {
       var retArr = [],
         selectorArr = selector.replace(/ /g, '').split(','),
         len = selectorArr.length,
@@ -7771,15 +8119,13 @@
       for (n = 0; n < len; n++) {
         sel = selectorArr[n];
         if (!Konva.Util.isValidSelector(sel)) {
-          Konva.Util.warn(
+          var message =
             'Selector "' +
-              sel +
-              '" is invalid. Allowed selectors examples are "#foo", ".bar" or "Group".'
-          );
-          Konva.Util.warn(
-            'If you have a custom shape with such className, please change it to start with upper letter like "Triangle".'
-          );
-          Konva.Util.warn('Konva is awesome, right?');
+            sel +
+            '" is invalid. Allowed selectors examples are "#foo", ".bar" or "Group".\n' +
+            'If you have a custom shape with such className, please change it to start with upper letter like "Triangle".\n' +
+            'Konva is awesome, right?';
+          Konva.Util.warn(message);
         }
         // id selector
         if (sel.charAt(0) === '#') {
@@ -7801,23 +8147,33 @@
         }
       }
 
-      return Konva.Collection.toCollection(retArr);
+      return retArr;
     },
-    /**
-         * return a first node from `find` method
-         * @method
-         * @memberof Konva.Container.prototype
-         * @param {String} selector
-         * @returns {Konva.Node}
-         * @example
-         * // select node with id foo
-         * var node = stage.findOne('#foo');
-         *
-         * // select node with name bar inside layer
-         * var nodes = layer.findOne('.bar');
-         */
-    findOne: function(selector) {
-      return this.find(selector)[0];
+    // (fn: ((Node) => boolean, findOne?: boolean)
+    _findByFunction: function(fn, findOne) {
+      var retArr = [];
+
+      var addItems = function(el) {
+        // escape function if we've already found one.
+        if (findOne && retArr.length > 0) {
+          return;
+        }
+
+        var children = el.getChildren();
+        var clen = children.length;
+
+        if (fn(el)) {
+          retArr = retArr.concat(el);
+        }
+
+        for (var i = 0; i < clen; i++) {
+          addItems(children[i]);
+        }
+      };
+
+      addItems(this);
+
+      return retArr;
     },
     _getNodeById: function(key) {
       var node = Konva.ids[key];
@@ -7868,12 +8224,12 @@
       return retArr;
     },
     /**
-         * determine if node is an ancestor
-         * of descendant
-         * @method
-         * @memberof Konva.Container.prototype
-         * @param {Konva.Node} node
-         */
+     * determine if node is an ancestor
+     * of descendant
+     * @method
+     * @memberof Konva.Container.prototype
+     * @param {Konva.Node} node
+     */
     isAncestorOf: function(node) {
       var parent = node.getParent();
       while (parent) {
@@ -7895,17 +8251,17 @@
       return node;
     },
     /**
-         * get all shapes that intersect a point.  Note: because this method must clear a temporary
-         * canvas and redraw every shape inside the container, it should only be used for special sitations
-         * because it performs very poorly.  Please use the {@link Konva.Stage#getIntersection} method if at all possible
-         * because it performs much better
-         * @method
-         * @memberof Konva.Container.prototype
-         * @param {Object} pos
-         * @param {Number} pos.x
-         * @param {Number} pos.y
-         * @returns {Array} array of shapes
-         */
+     * get all shapes that intersect a point.  Note: because this method must clear a temporary
+     * canvas and redraw every shape inside the container, it should only be used for special sitations
+     * because it performs very poorly.  Please use the {@link Konva.Stage#getIntersection} method if at all possible
+     * because it performs much better
+     * @method
+     * @memberof Konva.Container.prototype
+     * @param {Object} pos
+     * @param {Number} pos.x
+     * @param {Number} pos.y
+     * @returns {Array} array of shapes
+     */
     getAllIntersections: function(pos) {
       var arr = [];
 
@@ -7929,7 +8285,7 @@
         cachedCanvas = this._cache.canvas,
         cachedSceneCanvas = cachedCanvas && cachedCanvas.scene;
 
-      if (this.isVisible()) {
+      if (this.isVisible() || caching) {
         if (!caching && cachedSceneCanvas) {
           context.save();
           layer._applyTransform(this, context, top);
@@ -7948,7 +8304,7 @@
         cachedCanvas = this._cache.canvas,
         cachedHitCanvas = cachedCanvas && cachedCanvas.hit;
 
-      if (this.shouldDrawHit(canvas)) {
+      if (this.shouldDrawHit(canvas) || caching) {
         if (layer) {
           layer.clearHitCache();
         }
@@ -7987,7 +8343,10 @@
           context.rect(clipX, clipY, clipWidth, clipHeight);
         }
         context.clip();
-        m = transform.copy().invert().getMatrix();
+        m = transform
+          .copy()
+          .invert()
+          .getMatrix();
         context.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
       }
 
@@ -8021,17 +8380,18 @@
 
       var minX, minY, maxX, maxY;
       var selfRect = {
-        x: 0,
-        y: 0,
+        x: Infinity,
+        y: Infinity,
         width: 0,
         height: 0
       };
       var that = this;
       this.children.each(function(child) {
         // skip invisible children
-        if (!child.isVisible()) {
+        if (!child.getVisible()) {
           return;
         }
+
         var rect = child.getClientRect({ relativeTo: that });
 
         // skip invisible children (like empty groups)
@@ -8054,12 +8414,30 @@
         }
       });
 
-      if (this.children.length !== 0) {
+      // if child is group we need to make sure it has visible shapes inside
+      var shapes = this.find('Shape');
+      var hasVisible = false;
+      for (var i = 0; i < shapes.length; i++) {
+        var shape = shapes[i];
+        if (shape.getVisible()) {
+          hasVisible = true;
+          break;
+        }
+      }
+
+      if (hasVisible) {
         selfRect = {
           x: minX,
           y: minY,
           width: maxX - minX,
           height: maxY - minY
+        };
+      } else {
+        selfRect = {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0
         };
       }
 
@@ -8082,110 +8460,130 @@
     'height'
   ]);
   /**
-     * get/set clip
-     * @method
-     * @name clip
-     * @memberof Konva.Container.prototype
-     * @param {Object} clip
-     * @param {Number} clip.x
-     * @param {Number} clip.y
-     * @param {Number} clip.width
-     * @param {Number} clip.height
-     * @returns {Object}
-     * @example
-     * // get clip
-     * var clip = container.clip();
-     *
-     * // set clip
-     * container.setClip({
-     *   x: 20,
-     *   y: 20,
-     *   width: 20,
-     *   height: 20
-     * });
-     */
+   * get/set clip
+   * @method
+   * @name clip
+   * @memberof Konva.Container.prototype
+   * @param {Object} clip
+   * @param {Number} clip.x
+   * @param {Number} clip.y
+   * @param {Number} clip.width
+   * @param {Number} clip.height
+   * @returns {Object}
+   * @example
+   * // get clip
+   * var clip = container.clip();
+   *
+   * // set clip
+   * container.setClip({
+   *   x: 20,
+   *   y: 20,
+   *   width: 20,
+   *   height: 20
+   * });
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Container, 'clipX');
+  Konva.Factory.addGetterSetter(
+    Konva.Container,
+    'clipX',
+    undefined,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set clip x
-     * @name clipX
-     * @method
-     * @memberof Konva.Container.prototype
-     * @param {Number} x
-     * @returns {Number}
-     * @example
-     * // get clip x
-     * var clipX = container.clipX();
-     *
-     * // set clip x
-     * container.clipX(10);
-     */
+   * get/set clip x
+   * @name clipX
+   * @method
+   * @memberof Konva.Container.prototype
+   * @param {Number} x
+   * @returns {Number}
+   * @example
+   * // get clip x
+   * var clipX = container.clipX();
+   *
+   * // set clip x
+   * container.clipX(10);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Container, 'clipY');
+  Konva.Factory.addGetterSetter(
+    Konva.Container,
+    'clipY',
+    undefined,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set clip y
-     * @name clipY
-     * @method
-     * @memberof Konva.Container.prototype
-     * @param {Number} y
-     * @returns {Number}
-     * @example
-     * // get clip y
-     * var clipY = container.clipY();
-     *
-     * // set clip y
-     * container.clipY(10);
-     */
+   * get/set clip y
+   * @name clipY
+   * @method
+   * @memberof Konva.Container.prototype
+   * @param {Number} y
+   * @returns {Number}
+   * @example
+   * // get clip y
+   * var clipY = container.clipY();
+   *
+   * // set clip y
+   * container.clipY(10);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Container, 'clipWidth');
+  Konva.Factory.addGetterSetter(
+    Konva.Container,
+    'clipWidth',
+    undefined,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set clip width
-     * @name clipWidth
-     * @method
-     * @memberof Konva.Container.prototype
-     * @param {Number} width
-     * @returns {Number}
-     * @example
-     * // get clip width
-     * var clipWidth = container.clipWidth();
-     *
-     * // set clip width
-     * container.clipWidth(100);
-     */
+   * get/set clip width
+   * @name clipWidth
+   * @method
+   * @memberof Konva.Container.prototype
+   * @param {Number} width
+   * @returns {Number}
+   * @example
+   * // get clip width
+   * var clipWidth = container.clipWidth();
+   *
+   * // set clip width
+   * container.clipWidth(100);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Container, 'clipHeight');
+  Konva.Factory.addGetterSetter(
+    Konva.Container,
+    'clipHeight',
+    undefined,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set clip height
-     * @name clipHeight
-     * @method
-     * @memberof Konva.Container.prototype
-     * @param {Number} height
-     * @returns {Number}
-     * @example
-     * // get clip height
-     * var clipHeight = container.clipHeight();
-     *
-     * // set clip height
-     * container.clipHeight(100);
-     */
+   * get/set clip height
+   * @name clipHeight
+   * @method
+   * @memberof Konva.Container.prototype
+   * @param {Number} height
+   * @returns {Number}
+   * @example
+   * // get clip height
+   * var clipHeight = container.clipHeight();
+   *
+   * // set clip height
+   * container.clipHeight(100);
+   */
 
   Konva.Factory.addGetterSetter(Konva.Container, 'clipFunc');
   /**
-      * get/set clip function
-      * @name clipFunc
-      * @method
-      * @memberof Konva.Container.prototype
-      * @param {Function} function
-      * @returns {Function}
-      * @example
-      * // get clip function
-      * var clipFunction = container.clipFunc();
-      *
-      * // set clip height
-      * container.clipFunc(function(ctx) {
-      *   ctx.rect(0, 0, 100, 100);
-      * });
-      */
+   * get/set clip function
+   * @name clipFunc
+   * @method
+   * @memberof Konva.Container.prototype
+   * @param {Function} function
+   * @returns {Function}
+   * @example
+   * // get clip function
+   * var clipFunction = container.clipFunc();
+   *
+   * // set clip height
+   * container.clipFunc(function(ctx) {
+   *   ctx.rect(0, 0, 100, 100);
+   * });
+   */
 
   Konva.Collection.mapMethods(Konva.Container);
 })();
@@ -8299,14 +8697,15 @@
    *   x: 5,
    *   y: 10,
    *   fill: 'red',
-   *   // a Konva.Canvas renderer is passed into the drawFunc function
-   *   drawFunc: function(context) {
+   *   // a Konva.Canvas renderer is passed into the sceneFunc function
+   *   sceneFunc: function(context, shape) {
    *     context.beginPath();
    *     context.moveTo(200, 50);
    *     context.lineTo(420, 80);
    *     context.quadraticCurveTo(300, 100, 260, 170);
    *     context.closePath();
-   *     context.fillStrokeShape(this);
+   *     // Konva specific method
+   *     context.fillStrokeShape(shape);
    *   }
    *});
    */
@@ -8569,7 +8968,7 @@
         bufferCanvas,
         bufferContext;
 
-      if (!this.isVisible()) {
+      if (!this.isVisible() && !caching) {
         return this;
       }
       if (cachedCanvas) {
@@ -8601,7 +9000,7 @@
           }
         }
 
-        drawFunc.call(this, bufferContext);
+        drawFunc.call(this, bufferContext, this);
         bufferContext.restore();
 
         var ratio = bufferCanvas.pixelRatio;
@@ -8652,13 +9051,13 @@
           }
           context._applyShadow(this);
 
-          drawFunc.call(this, context);
+          drawFunc.call(this, context, this);
           context.restore();
           // if shape has stroke we need to redraw shape
           // otherwise we will see a shadow under stroke (and over fill)
           // but I think this is unexpected behavior
           if (this.hasFill() && this.getShadowForStrokeEnabled()) {
-            drawFunc.call(this, context);
+            drawFunc.call(this, context, this);
           }
         } else if (hasShadow && !canvas.hitCanvas) {
           context.save();
@@ -8667,14 +9066,14 @@
             context._applyGlobalCompositeOperation(this);
           }
           context._applyShadow(this);
-          drawFunc.call(this, context);
+          drawFunc.call(this, context, this);
           context.restore();
         } else {
           if (!caching) {
             context._applyOpacity(this);
             context._applyGlobalCompositeOperation(this);
           }
-          drawFunc.call(this, context);
+          drawFunc.call(this, context, this);
         }
       }
       context.restore();
@@ -8688,7 +9087,7 @@
         cachedCanvas = this._cache.canvas,
         cachedHitCanvas = cachedCanvas && cachedCanvas.hit;
 
-      if (!this.shouldDrawHit(canvas)) {
+      if (!this.shouldDrawHit(canvas) && !caching) {
         return this;
       }
       if (layer) {
@@ -8714,7 +9113,7 @@
           context.transform(o[0], o[1], o[2], o[3], o[4], o[5]);
         }
       }
-      drawFunc.call(this, context);
+      drawFunc.call(this, context, this);
       context.restore();
       return this;
     },
@@ -8779,7 +9178,12 @@
   Konva.Util.extend(Konva.Shape, Konva.Node);
 
   // add getters and setters
-  Konva.Factory.addGetterSetter(Konva.Shape, 'stroke');
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'stroke',
+    undefined,
+    Konva.Validators.getStringValidator()
+  );
 
   /**
    * get/set stroke color
@@ -8805,7 +9209,12 @@
    * shape.stroke('rgba(0,255,0,0.5');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'strokeWidth', 2);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'strokeWidth',
+    2,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set stroke width
@@ -8822,7 +9231,12 @@
    * shape.strokeWidth();
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'strokeHitEnabled', true);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'strokeHitEnabled',
+    true,
+    Konva.Validators.getBooleanValidator()
+  );
 
   /**
    * get/set strokeHitEnabled property. Useful for performance optimization.
@@ -8843,7 +9257,12 @@
    * shape.strokeHitEnabled();
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'perfectDrawEnabled', true);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'perfectDrawEnabled',
+    true,
+    Konva.Validators.getBooleanValidator()
+  );
 
   /**
    * get/set perfectDrawEnabled. If a shape has fill, stroke and opacity you may set `perfectDrawEnabled` to false to improve performance.
@@ -8862,7 +9281,12 @@
    * shape.perfectDrawEnabled();
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'shadowForStrokeEnabled', true);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'shadowForStrokeEnabled',
+    true,
+    Konva.Validators.getBooleanValidator()
+  );
 
   /**
    * get/set shadowForStrokeEnabled. Useful for performance optimization.
@@ -8979,7 +9403,12 @@
    *  line.dash([10, 20, 0.001, 20]);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'dashOffset', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'dashOffset',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set dash offset for stroke.
@@ -8994,7 +9423,12 @@
    *  line.dashOffset(5);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'shadowColor');
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'shadowColor',
+    undefined,
+    Konva.Validators.getStringValidator()
+  );
 
   /**
    * get/set shadow color
@@ -9020,7 +9454,12 @@
    * shape.shadowColor('rgba(0,255,0,0.5');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'shadowBlur');
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'shadowBlur',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set shadow blur
@@ -9037,7 +9476,12 @@
    * shape.shadowBlur(10);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'shadowOpacity');
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'shadowOpacity',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set shadow opacity.  must be a value between 0 and 1
@@ -9079,7 +9523,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'shadowOffsetX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'shadowOffsetX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set shadow offset x
@@ -9096,7 +9545,12 @@
    * shape.shadowOffsetX(5);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'shadowOffsetY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'shadowOffsetY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set shadow offset y
@@ -9134,7 +9588,12 @@
    * imageObj.src = 'path/to/image/jpg';
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fill');
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fill',
+    undefined,
+    Konva.Validators.getStringValidator()
+  );
 
   /**
    * get/set fill color
@@ -9163,7 +9622,12 @@
    * shape.fill(null);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fillPatternX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fillPatternX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set fill pattern x
@@ -9179,7 +9643,12 @@
    * shape.fillPatternX(20);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fillPatternY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fillPatternY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set fill pattern y
@@ -9450,7 +9919,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fillPatternOffsetX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fillPatternOffsetX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set fill pattern offset x
@@ -9467,7 +9941,12 @@
    * shape.fillPatternOffsetX(20);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fillPatternOffsetY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fillPatternOffsetY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set fill pattern offset y
@@ -9509,7 +9988,12 @@
    * });
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fillPatternScaleX', 1);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fillPatternScaleX',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set fill pattern scale x
@@ -9526,7 +10010,12 @@
    * shape.fillPatternScaleX(2);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Shape, 'fillPatternScaleY', 1);
+  Konva.Factory.addGetterSetter(
+    Konva.Shape,
+    'fillPatternScaleY',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set fill pattern scale y
@@ -10213,33 +10702,15 @@
     getContent: function() {
       return this.content;
     },
-    /**
-     * Creates a composite data URL
-     * @method
-     * @memberof Konva.Stage.prototype
-     * @param {Object} config
-     * @param {Function} [config.callback] function executed when the composite has completed. Deprecated as method is sync now.
-     * @param {String} [config.mimeType] can be "image/png" or "image/jpeg".
-     *  "image/png" is the default
-     * @param {Number} [config.x] x position of canvas section
-     * @param {Number} [config.y] y position of canvas section
-     * @param {Number} [config.width] width of canvas section
-     * @param {Number} [config.height] height of canvas section
-     * @param {Number} [config.quality] jpeg quality.  If using an "image/jpeg" mimeType,
-     *  you can specify the quality from 0 to 1, where 0 is very poor quality and 1
-     *  is very high quality
-     */
-    toDataURL: function(config) {
+    _toKonvaCanvas: function(config) {
       config = config || {};
 
-      var mimeType = config.mimeType || null,
-        quality = config.quality || null,
-        x = config.x || 0,
+      var x = config.x || 0,
         y = config.y || 0,
         canvas = new Konva.SceneCanvas({
           width: config.width || this.getWidth(),
           height: config.height || this.getHeight(),
-          pixelRatio: config.pixelRatio
+          pixelRatio: config.pixelRatio || 1
         }),
         _context = canvas.getContext()._context,
         layers = this.children;
@@ -10249,24 +10720,19 @@
       }
 
       layers.each(function(layer) {
-        var width = layer.getCanvas().getWidth();
-        var height = layer.getCanvas().getHeight();
-        var ratio = layer.getCanvas().getPixelRatio();
+        if (!layer.isVisible()) {
+          return;
+        }
+        var layerCanvas = layer._toKonvaCanvas(config);
         _context.drawImage(
-          layer.getCanvas()._canvas,
-          0,
-          0,
-          width / ratio,
-          height / ratio
+          layerCanvas._canvas,
+          x,
+          y,
+          layerCanvas.getWidth() / layerCanvas.getPixelRatio(),
+          layerCanvas.getHeight() / layerCanvas.getPixelRatio()
         );
       });
-      var src = canvas.toDataURL(mimeType, quality);
-
-      if (config.callback) {
-        config.callback(src);
-      }
-
-      return src;
+      return canvas;
     },
     /**
      * converts stage into an image.
@@ -10512,9 +10978,12 @@
 
       // always call preventDefault for desktop events because some browsers
       // try to drag and drop the canvas element
-      if (evt.cancelable) {
-        evt.preventDefault();
-      }
+      // TODO: if we preventDefault() it will cancel event detection outside of window
+      // but we need it for better drag&drop
+      // can we disable native drag&drop somehow differently?
+      // if (evt.cancelable) {
+      //   evt.preventDefault();
+      // }
     },
     _mouseup: function(evt) {
       // workaround for mobile IE to force touch event when unhandled pointer event elevates into a mouse event
@@ -10531,15 +11000,17 @@
 
         if (Konva.inDblClickWindow) {
           fireDblClick = true;
-          Konva.inDblClickWindow = false;
+          clearTimeout(this.dblTimeout);
+          // Konva.inDblClickWindow = false;
         } else if (!dd || !dd.justDragged) {
           // don't set inDblClickWindow after dragging
           Konva.inDblClickWindow = true;
+          clearTimeout(this.dblTimeout);
         } else if (dd) {
           dd.justDragged = false;
         }
 
-        setTimeout(function() {
+        this.dblTimeout = setTimeout(function() {
           Konva.inDblClickWindow = false;
         }, Konva.dblClickWindow);
 
@@ -10593,6 +11064,18 @@
       }
     },
     _contextmenu: function(evt) {
+      this._setPointerPosition(evt);
+      var shape = this.getIntersection(this.getPointerPosition());
+
+      if (shape && shape.isListening()) {
+        shape._fireAndBubble(CONTEXTMENU, { evt: evt });
+      } else {
+        this._fire(CONTEXTMENU, {
+          evt: evt,
+          target: this,
+          currentTarget: this
+        });
+      }
       this._fire(CONTENT_CONTEXTMENU, { evt: evt });
     },
     _touchstart: function(evt) {
@@ -10626,12 +11109,14 @@
 
       if (Konva.inDblClickWindow) {
         fireDblClick = true;
-        Konva.inDblClickWindow = false;
+        clearTimeout(this.dblTimeout);
+        // Konva.inDblClickWindow = false;
       } else {
         Konva.inDblClickWindow = true;
+        clearTimeout(this.dblTimeout);
       }
 
-      setTimeout(function() {
+      this.dblTimeout = setTimeout(function() {
         Konva.inDblClickWindow = false;
       }, Konva.dblClickWindow);
 
@@ -10713,6 +11198,12 @@
 
       if (shape && shape.isListening()) {
         shape._fireAndBubble(WHEEL, { evt: evt });
+      } else {
+        this._fire(WHEEL, {
+          evt: evt,
+          target: this,
+          currentTarget: this
+        });
       }
       this._fire(CONTENT_WHEEL, { evt: evt });
     },
@@ -10824,14 +11315,14 @@
 (function(Konva) {
   'use strict';
   /**
-     * BaseLayer constructor.
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Container
-     * @param {Object} config
-     * @param {Boolean} [config.clearBeforeDraw] set this property to false if you don't want
-     * to clear the canvas before each layer draw.  The default value is true.
-     * @param {Number} [config.x]
+   * BaseLayer constructor.
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Container
+   * @param {Object} config
+   * @param {Boolean} [config.clearBeforeDraw] set this property to false if you don't want
+   * to clear the canvas before each layer draw.  The default value is true.
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -10851,14 +11342,14 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * * @param {Object} [config.clip] set clip
+   * * @param {Object} [config.clip] set clip
      * @param {Number} [config.clipX] set clip x
      * @param {Number} [config.clipY] set clip y
      * @param {Number} [config.clipWidth] set clip width
      * @param {Number} [config.clipHeight] set clip height
      * @param {Function} [config.clipFunc] set clip func
 
-     */
+   */
   Konva.BaseLayer = function(config) {
     this.___init(config);
   };
@@ -11020,6 +11511,15 @@
       this.canvas.setSize(width, height);
       return this;
     },
+    _toKonvaCanvas: function(config) {
+      config = config || {};
+      config.width = config.width || this.getWidth();
+      config.height = config.height || this.getHeight();
+      config.x = config.x !== undefined ? config.x : this.getX();
+      config.y = config.y !== undefined ? config.y : this.getY();
+
+      return Konva.Node.prototype._toKonvaCanvas.call(this, config);
+    },
     /**
      * get/set width of layer.getter return width of stage. setter doing nothing.
      * if you want change width use `stage.width(value);`
@@ -11109,27 +11609,23 @@
          */
     INTERSECTION_OFFSETS = [
       { x: 0, y: 0 }, // 0
-      { x: -1, y: 0 }, // 1
       { x: -1, y: -1 }, // 2
-      { x: 0, y: -1 }, // 3
       { x: 1, y: -1 }, // 4
-      { x: 1, y: 0 }, // 5
       { x: 1, y: 1 }, // 6
-      { x: 0, y: 1 }, // 7
       { x: -1, y: 1 } // 8
     ],
     INTERSECTION_OFFSETS_LEN = INTERSECTION_OFFSETS.length;
 
   /**
-     * Layer constructor.  Layers are tied to their own canvas element and are used
-     * to contain groups or shapes.
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.BaseLayer
-     * @param {Object} config
-     * @param {Boolean} [config.clearBeforeDraw] set this property to false if you don't want
-     * to clear the canvas before each layer draw.  The default value is true.
-     * @param {Number} [config.x]
+   * Layer constructor.  Layers are tied to their own canvas element and are used
+   * to contain groups or shapes.
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.BaseLayer
+   * @param {Object} config
+   * @param {Boolean} [config.clearBeforeDraw] set this property to false if you don't want
+   * to clear the canvas before each layer draw.  The default value is true.
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -11149,16 +11645,16 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * * @param {Object} [config.clip] set clip
+   * * @param {Object} [config.clip] set clip
      * @param {Number} [config.clipX] set clip x
      * @param {Number} [config.clipY] set clip y
      * @param {Number} [config.clipWidth] set clip width
      * @param {Number} [config.clipHeight] set clip height
      * @param {Function} [config.clipFunc] set clip func
 
-     * @example
-     * var layer = new Konva.Layer();
-     */
+   * @example
+   * var layer = new Konva.Layer();
+   */
   Konva.Layer = function(config) {
     this.____init(config);
   };
@@ -11184,21 +11680,21 @@
       }
     },
     /**
-         * get visible intersection shape. This is the preferred
-         * method for determining if a point intersects a shape or not
-         * also you may pass optional selector parametr to return ancestor of intersected shape
-         * @method
-         * @memberof Konva.Layer.prototype
-         * @param {Object} pos
-         * @param {Number} pos.x
-         * @param {Number} pos.y
-         * @param {String} [selector]
-         * @returns {Konva.Node}
-         * @example
-         * var shape = layer.getIntersection({x: 50, y: 50});
-         * // or if you interested in shape parent:
-         * var group = layer.getIntersection({x: 50, y: 50}, 'Group');
-         */
+     * get visible intersection shape. This is the preferred
+     * method for determining if a point intersects a shape or not
+     * also you may pass optional selector parametr to return ancestor of intersected shape
+     * @method
+     * @memberof Konva.Layer.prototype
+     * @param {Object} pos
+     * @param {Number} pos.x
+     * @param {Number} pos.y
+     * @param {String} [selector]
+     * @returns {Konva.Node}
+     * @example
+     * var shape = layer.getIntersection({x: 50, y: 50});
+     * // or if you interested in shape parent:
+     * var group = layer.getIntersection({x: 50, y: 50}, 'Group');
+     */
     getIntersection: function(pos, selector) {
       var obj, i, intersectionOffset, shape;
 
@@ -11263,11 +11759,11 @@
     _getIntersection: function(pos) {
       var ratio = this.hitCanvas.pixelRatio;
       var p = this.hitCanvas.context.getImageData(
-        Math.round(pos.x * ratio),
-        Math.round(pos.y * ratio),
-        1,
-        1
-      ).data,
+          Math.round(pos.x * ratio),
+          Math.round(pos.y * ratio),
+          1,
+          1
+        ).data,
         p3 = p[3],
         colorKey,
         shape;
@@ -11293,7 +11789,8 @@
       return {};
     },
     drawScene: function(can, top) {
-      var layer = this.getLayer(), canvas = can || (layer && layer.getCanvas());
+      var layer = this.getLayer(),
+        canvas = can || (layer && layer.getCanvas());
 
       this._fire(BEFORE_DRAW, {
         node: this
@@ -11312,10 +11809,14 @@
       return this;
     },
     drawHit: function(can, top) {
-      var layer = this.getLayer(), canvas = can || (layer && layer.hitCanvas);
+      var layer = this.getLayer(),
+        canvas = can || (layer && layer.hitCanvas);
 
       if (layer && layer.getClearBeforeDraw()) {
-        layer.getHitCanvas().getContext().clear();
+        layer
+          .getHitCanvas()
+          .getContext()
+          .clear();
       }
 
       Konva.Container.prototype.drawHit.call(this, canvas, top);
@@ -11324,7 +11825,9 @@
     },
     clear: function(bounds) {
       Konva.BaseLayer.prototype.clear.call(this, bounds);
-      this.getHitCanvas().getContext().clear(bounds);
+      this.getHitCanvas()
+        .getContext()
+        .clear(bounds);
       this.imageData = null; // Clear getImageData cache
       return this;
     },
@@ -11341,23 +11844,23 @@
       return this;
     },
     /**
-         * enable hit graph
-         * @name enableHitGraph
-         * @method
-         * @memberof Konva.Layer.prototype
-         * @returns {Layer}
-         */
+     * enable hit graph
+     * @name enableHitGraph
+     * @method
+     * @memberof Konva.Layer.prototype
+     * @returns {Layer}
+     */
     enableHitGraph: function() {
       this.setHitGraphEnabled(true);
       return this;
     },
     /**
-         * disable hit graph
-         * @name disableHitGraph
-         * @method
-         * @memberof Konva.Layer.prototype
-         * @returns {Layer}
-         */
+     * disable hit graph
+     * @name disableHitGraph
+     * @method
+     * @memberof Konva.Layer.prototype
+     * @returns {Layer}
+     */
     disableHitGraph: function() {
       this.setHitGraphEnabled(false);
       return this;
@@ -11372,54 +11875,54 @@
 
   Konva.Factory.addGetterSetter(Konva.Layer, 'hitGraphEnabled', true);
   /**
-     * get/set hitGraphEnabled flag.  Disabling the hit graph will greatly increase
-     *  draw performance because the hit graph will not be redrawn each time the layer is
-     *  drawn.  This, however, also disables mouse/touch event detection
-     * @name hitGraphEnabled
-     * @method
-     * @memberof Konva.Layer.prototype
-     * @param {Boolean} enabled
-     * @returns {Boolean}
-     * @example
-     * // get hitGraphEnabled flag
-     * var hitGraphEnabled = layer.hitGraphEnabled();
-     *
-     * // disable hit graph
-     * layer.hitGraphEnabled(false);
-     *
-     * // enable hit graph
-     * layer.hitGraphEnabled(true);
-     */
+   * get/set hitGraphEnabled flag.  Disabling the hit graph will greatly increase
+   *  draw performance because the hit graph will not be redrawn each time the layer is
+   *  drawn.  This, however, also disables mouse/touch event detection
+   * @name hitGraphEnabled
+   * @method
+   * @memberof Konva.Layer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get hitGraphEnabled flag
+   * var hitGraphEnabled = layer.hitGraphEnabled();
+   *
+   * // disable hit graph
+   * layer.hitGraphEnabled(false);
+   *
+   * // enable hit graph
+   * layer.hitGraphEnabled(true);
+   */
   Konva.Collection.mapMethods(Konva.Layer);
 })();
 
 (function() {
   'use strict';
   /**
-     * FastLayer constructor. Layers are tied to their own canvas element and are used
-     * to contain shapes only.  If you don't need node nesting, mouse and touch interactions,
-     * or event pub/sub, you should use FastLayer instead of Layer to create your layers.
-     * It renders about 2x faster than normal layers.
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.BaseLayer
-     * @param {Object} config
-     * @param {Boolean} [config.clearBeforeDraw] set this property to false if you don't want
-     * to clear the canvas before each layer draw.  The default value is true.
-     * @param {Boolean} [config.visible]
-     * @param {String} [config.id] unique id
-     * @param {String} [config.name] non-unique name
-     * @param {Number} [config.opacity] determines node opacity.  Can be any number between 0 and 1
-     * * @param {Object} [config.clip] set clip
+   * FastLayer constructor. Layers are tied to their own canvas element and are used
+   * to contain shapes only.  If you don't need node nesting, mouse and touch interactions,
+   * or event pub/sub, you should use FastLayer instead of Layer to create your layers.
+   * It renders about 2x faster than normal layers.
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.BaseLayer
+   * @param {Object} config
+   * @param {Boolean} [config.clearBeforeDraw] set this property to false if you don't want
+   * to clear the canvas before each layer draw.  The default value is true.
+   * @param {Boolean} [config.visible]
+   * @param {String} [config.id] unique id
+   * @param {String} [config.name] non-unique name
+   * @param {Number} [config.opacity] determines node opacity.  Can be any number between 0 and 1
+   * * @param {Object} [config.clip] set clip
      * @param {Number} [config.clipX] set clip x
      * @param {Number} [config.clipY] set clip y
      * @param {Number} [config.clipWidth] set clip width
      * @param {Number} [config.clipHeight] set clip height
      * @param {Function} [config.clipFunc] set clip func
 
-     * @example
-     * var layer = new Konva.FastLayer();
-     */
+   * @example
+   * var layer = new Konva.FastLayer();
+   */
   Konva.FastLayer = function(config) {
     this.____init(config);
   };
@@ -11447,7 +11950,8 @@
       return null;
     },
     drawScene: function(can) {
-      var layer = this.getLayer(), canvas = can || (layer && layer.getCanvas());
+      var layer = this.getLayer(),
+        canvas = can || (layer && layer.getCanvas());
 
       if (this.getClearBeforeDraw()) {
         canvas.getContext().clear();
@@ -11480,12 +11984,12 @@
 (function() {
   'use strict';
   /**
-     * Group constructor.  Groups are used to contain shapes or other groups.
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Container
-     * @param {Object} config
-     * @param {Number} [config.x]
+   * Group constructor.  Groups are used to contain shapes or other groups.
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Container
+   * @param {Object} config
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -11505,16 +12009,16 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * * @param {Object} [config.clip] set clip
+   * * @param {Object} [config.clip] set clip
      * @param {Number} [config.clipX] set clip x
      * @param {Number} [config.clipY] set clip y
      * @param {Number} [config.clipWidth] set clip width
      * @param {Number} [config.clipHeight] set clip height
      * @param {Function} [config.clipFunc] set clip func
 
-     * @example
-     * var group = new Konva.Group();
-     */
+   * @example
+   * var group = new Konva.Group();
+   */
   Konva.Group = function(config) {
     this.___init(config);
   };
@@ -11571,28 +12075,28 @@
   }
 
   /**
-     * Animation constructor.  A stage is used to contain multiple layers and handle
-     * @constructor
-     * @memberof Konva
-     * @param {Function} func function executed on each animation frame.  The function is passed a frame object, which contains
-     *  timeDiff, lastTime, time, and frameRate properties.  The timeDiff property is the number of milliseconds that have passed
-     *  since the last animation frame.  The lastTime property is time in milliseconds that elapsed from the moment the animation started
-     *  to the last animation frame.  The time property is the time in milliseconds that ellapsed from the moment the animation started
-     *  to the current animation frame.  The frameRate property is the current frame rate in frames / second. Return false from function,
-     *  if you don't need to redraw layer/layers on some frames.
-     * @param {Konva.Layer|Array} [layers] layer(s) to be redrawn on each animation frame. Can be a layer, an array of layers, or null.
-     *  Not specifying a node will result in no redraw.
-     * @example
-     * // move a node to the right at 50 pixels / second
-     * var velocity = 50;
-     *
-     * var anim = new Konva.Animation(function(frame) {
-     *   var dist = velocity * (frame.timeDiff / 1000);
-     *   node.move(dist, 0);
-     * }, layer);
-     *
-     * anim.start();
-     */
+   * Animation constructor.  A stage is used to contain multiple layers and handle
+   * @constructor
+   * @memberof Konva
+   * @param {Function} func function executed on each animation frame.  The function is passed a frame object, which contains
+   *  timeDiff, lastTime, time, and frameRate properties.  The timeDiff property is the number of milliseconds that have passed
+   *  since the last animation frame.  The lastTime property is time in milliseconds that elapsed from the moment the animation started
+   *  to the last animation frame.  The time property is the time in milliseconds that ellapsed from the moment the animation started
+   *  to the current animation frame.  The frameRate property is the current frame rate in frames / second. Return false from function,
+   *  if you don't need to redraw layer/layers on some frames.
+   * @param {Konva.Layer|Array} [layers] layer(s) to be redrawn on each animation frame. Can be a layer, an array of layers, or null.
+   *  Not specifying a node will result in no redraw.
+   * @example
+   * // move a node to the right at 50 pixels / second
+   * var velocity = 50;
+   *
+   * var anim = new Konva.Animation(function(frame) {
+   *   var dist = velocity * (frame.timeDiff / 1000);
+   *   node.move(dist, 0);
+   * }, layer);
+   *
+   * anim.start();
+   */
   Konva.Animation = function(func, layers) {
     var Anim = Konva.Animation;
     this.func = func;
@@ -11609,12 +12113,12 @@
      */
   Konva.Animation.prototype = {
     /**
-         * set layers to be redrawn on each animation frame
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @param {Konva.Layer|Array} [layers] layer(s) to be redrawn.&nbsp; Can be a layer, an array of layers, or null.  Not specifying a node will result in no redraw.
-         * @return {Konva.Animation} this
-         */
+     * set layers to be redrawn on each animation frame
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @param {Konva.Layer|Array} [layers] layer(s) to be redrawn.&nbsp; Can be a layer, an array of layers, or null.  Not specifying a node will result in no redraw.
+     * @return {Konva.Animation} this
+     */
     setLayers: function(layers) {
       var lays = [];
       // if passing in no layers
@@ -11634,23 +12138,25 @@
       return this;
     },
     /**
-         * get layers
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @return {Array} Array of Konva.Layer
-         */
+     * get layers
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @return {Array} Array of Konva.Layer
+     */
     getLayers: function() {
       return this.layers;
     },
     /**
-         * add layer.  Returns true if the layer was added, and false if it was not
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @param {Konva.Layer} layer to add
-         * @return {Bool} true if layer is added to animation, otherwise false
-         */
+     * add layer.  Returns true if the layer was added, and false if it was not
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @param {Konva.Layer} layer to add
+     * @return {Bool} true if layer is added to animation, otherwise false
+     */
     addLayer: function(layer) {
-      var layers = this.layers, len = layers.length, n;
+      var layers = this.layers,
+        len = layers.length,
+        n;
 
       // don't add the layer if it already exists
       for (n = 0; n < len; n++) {
@@ -11663,11 +12169,11 @@
       return true;
     },
     /**
-         * determine if animation is running or not.  returns true or false
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @return {Bool} is animation running?
-         */
+     * determine if animation is running or not.  returns true or false
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @return {Bool} is animation running?
+     */
     isRunning: function() {
       var a = Konva.Animation,
         animations = a.animations,
@@ -11682,11 +12188,11 @@
       return false;
     },
     /**
-         * start animation
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @return {Konva.Animation} this
-         */
+     * start animation
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @return {Konva.Animation} this
+     */
     start: function() {
       var Anim = Konva.Animation;
       this.stop();
@@ -11696,11 +12202,11 @@
       return this;
     },
     /**
-         * stop animation
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @return {Konva.Animation} this
-         */
+     * stop animation
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @return {Konva.Animation} this
+     */
     stop: function() {
       Konva.Animation._removeAnimation(this);
       return this;
@@ -11721,7 +12227,10 @@
     this._handleAnimation();
   };
   Konva.Animation._removeAnimation = function(anim) {
-    var id = anim.id, animations = this.animations, len = animations.length, n;
+    var id = anim.id,
+      animations = this.animations,
+      len = animations.length,
+      n;
 
     for (n = 0; n < len; n++) {
       if (animations[n].id === id) {
@@ -11806,14 +12315,15 @@
   };
 
   /**
-     * batch draw. this function will not do immediate draw
-     * but it will schedule drawing to next tick (requestAnimFrame)
-     * @method
-     * @return {Konva.Layer} this
-     * @memberof Konva.Base.prototype
-     */
+   * batch draw. this function will not do immediate draw
+   * but it will schedule drawing to next tick (requestAnimFrame)
+   * @method
+   * @return {Konva.Layer} this
+   * @memberof Konva.Base.prototype
+   */
   Konva.BaseLayer.prototype.batchDraw = function() {
-    var that = this, Anim = Konva.Animation;
+    var that = this,
+      Anim = Konva.Animation;
 
     if (!this.batchAnim) {
       this.batchAnim = new Anim(function() {
@@ -11829,11 +12339,11 @@
   };
 
   /**
-     * batch draw
-     * @method
-     * @return {Konva.Stage} this
-     * @memberof Konva.Stage.prototype
-     */
+   * batch draw
+   * @method
+   * @return {Konva.Stage} this
+   * @memberof Konva.Stage.prototype
+   */
   Konva.Stage.prototype.batchDraw = function() {
     this.getChildren().each(function(layer) {
       layer.batchDraw();
@@ -11845,12 +12355,12 @@
 (function() {
   'use strict';
   var blacklist = {
-    node: 1,
-    duration: 1,
-    easing: 1,
-    onFinish: 1,
-    yoyo: 1
-  },
+      node: 1,
+      duration: 1,
+      easing: 1,
+      onFinish: 1,
+      yoyo: 1
+    },
     PAUSED = 1,
     PLAYING = 2,
     REVERSING = 3,
@@ -11970,26 +12480,26 @@
   };
 
   /**
-     * Tween constructor.  Tweens enable you to animate a node between the current state and a new state.
-     *  You can play, pause, reverse, seek, reset, and finish tweens.  By default, tweens are animated using
-     *  a linear easing.  For more tweening options, check out {@link Konva.Easings}
-     * @constructor
-     * @memberof Konva
-     * @example
-     * // instantiate new tween which fully rotates a node in 1 second
-     * var tween = new Konva.Tween({
-     *   node: node,
-     *   rotationDeg: 360,
-     *   duration: 1,
-     *   easing: Konva.Easings.EaseInOut
-     * });
-     *
-     * // play tween
-     * tween.play();
-     *
-     * // pause tween
-     * tween.pause();
-     */
+   * Tween constructor.  Tweens enable you to animate a node between the current state and a new state.
+   *  You can play, pause, reverse, seek, reset, and finish tweens.  By default, tweens are animated using
+   *  a linear easing.  For more tweening options, check out {@link Konva.Easings}
+   * @constructor
+   * @memberof Konva
+   * @example
+   * // instantiate new tween which fully rotates a node in 1 second
+   * var tween = new Konva.Tween({
+   *   node: node,
+   *   rotationDeg: 360,
+   *   duration: 1,
+   *   easing: Konva.Easings.EaseInOut
+   * });
+   *
+   * // play tween
+   * tween.play();
+   *
+   * // pause tween
+   * tween.pause();
+   */
   Konva.Tween = function(config) {
     var that = this,
       node = config.node,
@@ -12000,7 +12510,7 @@
       key;
 
     if (typeof config.duration === 'undefined') {
-      duration = 1;
+      duration = 0.3;
     } else if (config.duration === 0) {
       // zero is bad value for duration
       duration = 0.001;
@@ -12076,7 +12586,8 @@
         n,
         len,
         trueEnd,
-        trueStart;
+        trueStart,
+        endRGBA;
 
       // remove conflict from tween map if it exists
       tweenId = Konva.Tween.tweens[nodeId][key];
@@ -12107,12 +12618,30 @@
           }
         }
 
-        for (n = 0; n < len; n++) {
-          diff.push(end[n] - start[n]);
+        if (key.indexOf('fill') === 0) {
+          for (n = 0; n < len; n++) {
+            if (n % 2 === 0) {
+              diff.push(end[n] - start[n]);
+            } else {
+              var startRGBA = Konva.Util.colorToRGBA(start[n]);
+              endRGBA = Konva.Util.colorToRGBA(end[n]);
+              start[n] = startRGBA;
+              diff.push({
+                r: endRGBA.r - startRGBA.r,
+                g: endRGBA.g - startRGBA.g,
+                b: endRGBA.b - startRGBA.b,
+                a: endRGBA.a - startRGBA.a
+              });
+            }
+          }
+        } else {
+          for (n = 0; n < len; n++) {
+            diff.push(end[n] - start[n]);
+          }
         }
       } else if (colorAttrs.indexOf(key) !== -1) {
         start = Konva.Util.colorToRGBA(start);
-        var endRGBA = Konva.Util.colorToRGBA(end);
+        endRGBA = Konva.Util.colorToRGBA(end);
         diff = {
           r: endRGBA.r - start.r,
           g: endRGBA.g - start.g,
@@ -12153,8 +12682,28 @@
         if (Konva.Util._isArray(start)) {
           newVal = [];
           len = Math.max(start.length, end.length);
-          for (n = 0; n < len; n++) {
-            newVal.push((start[n] || 0) + diff[n] * i);
+          if (key.indexOf('fill') === 0) {
+            for (n = 0; n < len; n++) {
+              if (n % 2 === 0) {
+                newVal.push((start[n] || 0) + diff[n] * i);
+              } else {
+                newVal.push(
+                  'rgba(' +
+                    Math.round(start[n].r + diff[n].r * i) +
+                    ',' +
+                    Math.round(start[n].g + diff[n].g * i) +
+                    ',' +
+                    Math.round(start[n].b + diff[n].b * i) +
+                    ',' +
+                    (start[n].a + diff[n].a * i) +
+                    ')'
+                );
+              }
+            }
+          } else {
+            for (n = 0; n < len; n++) {
+              newVal.push((start[n] || 0) + diff[n] * i);
+            }
           }
         } else if (colorAttrs.indexOf(key) !== -1) {
           newVal =
@@ -12216,71 +12765,71 @@
       };
     },
     /**
-         * play
-         * @method
-         * @memberof Konva.Tween.prototype
-         * @returns {Tween}
-         */
+     * play
+     * @method
+     * @memberof Konva.Tween.prototype
+     * @returns {Tween}
+     */
     play: function() {
       this.tween.play();
       return this;
     },
     /**
-         * reverse
-         * @method
-         * @memberof Konva.Tween.prototype
-         * @returns {Tween}
-         */
+     * reverse
+     * @method
+     * @memberof Konva.Tween.prototype
+     * @returns {Tween}
+     */
     reverse: function() {
       this.tween.reverse();
       return this;
     },
     /**
-         * reset
-         * @method
-         * @memberof Konva.Tween.prototype
-         * @returns {Tween}
-         */
+     * reset
+     * @method
+     * @memberof Konva.Tween.prototype
+     * @returns {Tween}
+     */
     reset: function() {
       this.tween.reset();
       return this;
     },
     /**
-         * seek
-         * @method
-         * @memberof Konva.Tween.prototype
-         * @param {Integer} t time in seconds between 0 and the duration
-         * @returns {Tween}
-         */
+     * seek
+     * @method
+     * @memberof Konva.Tween.prototype
+     * @param {Integer} t time in seconds between 0 and the duration
+     * @returns {Tween}
+     */
     seek: function(t) {
       this.tween.seek(t * 1000);
       return this;
     },
     /**
-         * pause
-         * @method
-         * @memberof Konva.Tween.prototype
-         * @returns {Tween}
-         */
+     * pause
+     * @method
+     * @memberof Konva.Tween.prototype
+     * @returns {Tween}
+     */
     pause: function() {
       this.tween.pause();
       return this;
     },
     /**
-         * finish
-         * @method
-         * @memberof Konva.Tween.prototype
-         * @returns {Tween}
-         */
+     * finish
+     * @method
+     * @memberof Konva.Tween.prototype
+     * @returns {Tween}
+     */
     finish: function() {
       this.tween.finish();
       return this;
     },
     /**
-         * destroy
-         * @method
-         * @memberof Konva.Tween.prototype
-         */
+     * destroy
+     * @method
+     * @memberof Konva.Tween.prototype
+     */
     destroy: function() {
       var nodeId = this.node._id,
         thisId = this._id,
@@ -12298,18 +12847,18 @@
   };
 
   /**
-     * Tween node properties. Shorter usage of {@link Konva.Tween} object.
-     *
-     * @method Konva.Node#to
-     * @memberof Konva.Node
-     * @param {Object} [params] tween params
-     * @example
-     *
-     * circle.to({
-     *  x : 50,
-     *  duration : 0.5
-     * });
-     */
+   * Tween node properties. Shorter usage of {@link Konva.Tween} object.
+   *
+   * @method Konva.Node#to
+   * @memberof Konva.Node
+   * @param {Object} [params] tween params
+   * @example
+   *
+   * circle.to({
+   *  x : 50,
+   *  duration : 0.5
+   * });
+   */
   Konva.Node.prototype.to = function(params) {
     var onFinish = params.onFinish;
     params.node = this;
@@ -12329,33 +12878,33 @@
     */
 
   /**
-     * @namespace Easings
-     * @memberof Konva
-     */
+   * @namespace Easings
+   * @memberof Konva
+   */
   Konva.Easings = {
     /**
-        * back ease in
-        * @function
-        * @memberof Konva.Easings
-        */
+     * back ease in
+     * @function
+     * @memberof Konva.Easings
+     */
     BackEaseIn: function(t, b, c, d) {
       var s = 1.70158;
       return c * (t /= d) * t * ((s + 1) * t - s) + b;
     },
     /**
-        * back ease out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * back ease out
+     * @function
+     * @memberof Konva.Easings
+     */
     BackEaseOut: function(t, b, c, d) {
       var s = 1.70158;
       return c * ((t = t / d - 1) * t * ((s + 1) * t + s) + 1) + b;
     },
     /**
-        * back ease in out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * back ease in out
+     * @function
+     * @memberof Konva.Easings
+     */
     BackEaseInOut: function(t, b, c, d) {
       var s = 1.70158;
       if ((t /= d / 2) < 1) {
@@ -12364,10 +12913,10 @@
       return c / 2 * ((t -= 2) * t * (((s *= 1.525) + 1) * t + s) + 2) + b;
     },
     /**
-        * elastic ease in
-        * @function
-        * @memberof Konva.Easings
-        */
+     * elastic ease in
+     * @function
+     * @memberof Konva.Easings
+     */
     ElasticEaseIn: function(t, b, c, d, a, p) {
       // added s = 0
       var s = 0;
@@ -12387,16 +12936,18 @@
         s = p / (2 * Math.PI) * Math.asin(c / a);
       }
       return (
-        -(a *
+        -(
+          a *
           Math.pow(2, 10 * (t -= 1)) *
-          Math.sin((t * d - s) * (2 * Math.PI) / p)) + b
+          Math.sin((t * d - s) * (2 * Math.PI) / p)
+        ) + b
       );
     },
     /**
-        * elastic ease out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * elastic ease out
+     * @function
+     * @memberof Konva.Easings
+     */
     ElasticEaseOut: function(t, b, c, d, a, p) {
       // added s = 0
       var s = 0;
@@ -12422,10 +12973,10 @@
       );
     },
     /**
-        * elastic ease in out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * elastic ease in out
+     * @function
+     * @memberof Konva.Easings
+     */
     ElasticEaseInOut: function(t, b, c, d, a, p) {
       // added s = 0
       var s = 0;
@@ -12463,10 +13014,10 @@
       );
     },
     /**
-        * bounce ease out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * bounce ease out
+     * @function
+     * @memberof Konva.Easings
+     */
     BounceEaseOut: function(t, b, c, d) {
       if ((t /= d) < 1 / 2.75) {
         return c * (7.5625 * t * t) + b;
@@ -12479,18 +13030,18 @@
       }
     },
     /**
-        * bounce ease in
-        * @function
-        * @memberof Konva.Easings
-        */
+     * bounce ease in
+     * @function
+     * @memberof Konva.Easings
+     */
     BounceEaseIn: function(t, b, c, d) {
       return c - Konva.Easings.BounceEaseOut(d - t, 0, c, d) + b;
     },
     /**
-        * bounce ease in out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * bounce ease in out
+     * @function
+     * @memberof Konva.Easings
+     */
     BounceEaseInOut: function(t, b, c, d) {
       if (t < d / 2) {
         return Konva.Easings.BounceEaseIn(t * 2, 0, c, d) * 0.5 + b;
@@ -12501,26 +13052,26 @@
       }
     },
     /**
-        * ease in
-        * @function
-        * @memberof Konva.Easings
-        */
+     * ease in
+     * @function
+     * @memberof Konva.Easings
+     */
     EaseIn: function(t, b, c, d) {
       return c * (t /= d) * t + b;
     },
     /**
-        * ease out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * ease out
+     * @function
+     * @memberof Konva.Easings
+     */
     EaseOut: function(t, b, c, d) {
       return -c * (t /= d) * (t - 2) + b;
     },
     /**
-        * ease in out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * ease in out
+     * @function
+     * @memberof Konva.Easings
+     */
     EaseInOut: function(t, b, c, d) {
       if ((t /= d / 2) < 1) {
         return c / 2 * t * t + b;
@@ -12528,26 +13079,26 @@
       return -c / 2 * (--t * (t - 2) - 1) + b;
     },
     /**
-        * strong ease in
-        * @function
-        * @memberof Konva.Easings
-        */
+     * strong ease in
+     * @function
+     * @memberof Konva.Easings
+     */
     StrongEaseIn: function(t, b, c, d) {
       return c * (t /= d) * t * t * t * t + b;
     },
     /**
-        * strong ease out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * strong ease out
+     * @function
+     * @memberof Konva.Easings
+     */
     StrongEaseOut: function(t, b, c, d) {
       return c * ((t = t / d - 1) * t * t * t * t + 1) + b;
     },
     /**
-        * strong ease in out
-        * @function
-        * @memberof Konva.Easings
-        */
+     * strong ease in out
+     * @function
+     * @memberof Konva.Easings
+     */
     StrongEaseInOut: function(t, b, c, d) {
       if ((t /= d / 2) < 1) {
         return c / 2 * t * t * t * t * t + b;
@@ -12555,10 +13106,10 @@
       return c / 2 * ((t -= 2) * t * t * t * t + 2) + b;
     },
     /**
-        * linear
-        * @function
-        * @memberof Konva.Easings
-        */
+     * linear
+     * @function
+     * @memberof Konva.Easings
+     */
     Linear: function(t, b, c, d) {
       return c * t / d + b;
     }
@@ -12681,10 +13232,10 @@
   // Node extenders
 
   /**
-     * initiate drag and drop
-     * @method
-     * @memberof Konva.Node.prototype
-     */
+   * initiate drag and drop
+   * @method
+   * @memberof Konva.Node.prototype
+   */
   Konva.Node.prototype.startDrag = function() {
     var dd = Konva.DD,
       stage = this.getStage(),
@@ -12737,10 +13288,10 @@
   };
 
   /**
-     * stop drag and drop
-     * @method
-     * @memberof Konva.Node.prototype
-     */
+   * stop drag and drop
+   * @method
+   * @memberof Konva.Node.prototype
+   */
   Konva.Node.prototype.stopDrag = function() {
     var dd = Konva.DD,
       evt = {};
@@ -12768,10 +13319,10 @@
   };
 
   /**
-     * determine if node is currently in drag and drop mode
-     * @method
-     * @memberof Konva.Node.prototype
-     */
+   * determine if node is currently in drag and drop mode
+   * @method
+   * @memberof Konva.Node.prototype
+   */
   Konva.Node.prototype.isDragging = function() {
     var dd = Konva.DD;
     return !!(dd.node && dd.node._id === this._id && dd.isDragging);
@@ -12840,70 +13391,71 @@
   Konva.Factory.addGetterSetter(Konva.Node, 'dragBoundFunc');
 
   /**
-     * get/set drag bound function.  This is used to override the default
-     *  drag and drop position
-     * @name dragBoundFunc
-     * @method
-     * @memberof Konva.Node.prototype
-     * @param {Function} dragBoundFunc
-     * @returns {Function}
-     * @example
-     * // get drag bound function
-     * var dragBoundFunc = node.dragBoundFunc();
-     *
-     * // create vertical drag and drop
-     * node.dragBoundFunc(function(pos){
-     *   return {
-     *     x: this.getAbsolutePosition().x,
-     *     y: pos.y
-     *   };
-     * });
-     */
+   * get/set drag bound function.  This is used to override the default
+   *  drag and drop position.
+   * @name dragBoundFunc
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Function} dragBoundFunc
+   * @returns {Function}
+   * @example
+   * // get drag bound function
+   * var dragBoundFunc = node.dragBoundFunc();
+   *
+   * // create vertical drag and drop
+   * node.dragBoundFunc(function(pos){
+   *   // important pos - is absolute position of the node
+   *   // you should return absolute position too
+   *   return {
+   *     x: this.getAbsolutePosition().x,
+   *     y: pos.y
+   *   };
+   * });
+   */
 
   Konva.Factory.addGetter(Konva.Node, 'draggable', false);
   Konva.Factory.addOverloadedGetterSetter(Konva.Node, 'draggable');
 
   /**
-     * get/set draggable flag
-     * @name draggable
-     * @method
-     * @memberof Konva.Node.prototype
-     * @param {Boolean} draggable
-     * @returns {Boolean}
-     * @example
-     * // get draggable flag
-     * var draggable = node.draggable();
-     *
-     * // enable drag and drop
-     * node.draggable(true);
-     *
-     * // disable drag and drop
-     * node.draggable(false);
-     */
+   * get/set draggable flag
+   * @name draggable
+   * @method
+   * @memberof Konva.Node.prototype
+   * @param {Boolean} draggable
+   * @returns {Boolean}
+   * @example
+   * // get draggable flag
+   * var draggable = node.draggable();
+   *
+   * // enable drag and drop
+   * node.draggable(true);
+   *
+   * // disable drag and drop
+   * node.draggable(false);
+   */
 
   if (Konva.isBrowser) {
-    var html = Konva.document.documentElement;
-    html.addEventListener('mouseup', Konva.DD._endDragBefore, true);
-    html.addEventListener('touchend', Konva.DD._endDragBefore, true);
+    window.addEventListener('mouseup', Konva.DD._endDragBefore, true);
+    window.addEventListener('touchend', Konva.DD._endDragBefore, true);
 
-    html.addEventListener('mousemove', Konva.DD._drag);
-    html.addEventListener('touchmove', Konva.DD._drag);
+    window.addEventListener('mousemove', Konva.DD._drag);
+    window.addEventListener('touchmove', Konva.DD._drag);
 
-    html.addEventListener('mouseup', Konva.DD._endDragAfter, false);
-    html.addEventListener('touchend', Konva.DD._endDragAfter, false);
+    window.addEventListener('mouseup', Konva.DD._endDragAfter, false);
+    window.addEventListener('touchend', Konva.DD._endDragAfter, false);
   }
 })();
 
 (function() {
   'use strict';
   /**
-     * Rect constructor
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Number} [config.cornerRadius]
-     * @param {String} [config.fill] fill color
+   * Rect constructor
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Number} [config.cornerRadius]
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -12954,7 +13506,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -12974,15 +13526,15 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var rect = new Konva.Rect({
-     *   width: 100,
-     *   height: 50,
-     *   fill: 'red',
-     *   stroke: 'black',
-     *   strokeWidth: 5
-     * });
-     */
+   * @example
+   * var rect = new Konva.Rect({
+   *   width: 100,
+   *   height: 50,
+   *   fill: 'red',
+   *   stroke: 'black',
+   *   strokeWidth: 5
+   * });
+   */
   Konva.Rect = function(config) {
     this.___init(config);
   };
@@ -13051,21 +13603,26 @@
 
   Konva.Util.extend(Konva.Rect, Konva.Shape);
 
-  Konva.Factory.addGetterSetter(Konva.Rect, 'cornerRadius', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Rect,
+    'cornerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set corner radius
-     * @name cornerRadius
-     * @method
-     * @memberof Konva.Rect.prototype
-     * @param {Number} cornerRadius
-     * @returns {Number}
-     * @example
-     * // get corner radius
-     * var cornerRadius = rect.cornerRadius();
-     *
-     * // set corner radius
-     * rect.cornerRadius(10);
-     */
+   * get/set corner radius
+   * @name cornerRadius
+   * @method
+   * @memberof Konva.Rect.prototype
+   * @param {Number} cornerRadius
+   * @returns {Number}
+   * @example
+   * // get corner radius
+   * var cornerRadius = rect.cornerRadius();
+   *
+   * // set corner radius
+   * rect.cornerRadius(10);
+   */
 
   Konva.Collection.mapMethods(Konva.Rect);
 })();
@@ -13073,16 +13630,17 @@
 (function(Konva) {
   'use strict';
   // the 0.0001 offset fixes a bug in Chrome 27
-  var PIx2 = Math.PI * 2 - 0.0001, CIRCLE = 'Circle';
+  var PIx2 = Math.PI * 2 - 0.0001,
+    CIRCLE = 'Circle';
 
   /**
-     * Circle constructor
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Number} config.radius
-     * @param {String} [config.fill] fill color
+   * Circle constructor
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Number} config.radius
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -13133,7 +13691,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -13153,15 +13711,15 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * // create circle
-     * var circle = new Konva.Circle({
-     *   radius: 40,
-     *   fill: 'red',
-     *   stroke: 'black'
-     *   strokeWidth: 5
-     * });
-     */
+   * @example
+   * // create circle
+   * var circle = new Konva.Circle({
+   *   radius: 40,
+   *   fill: 'red',
+   *   stroke: 'black'
+   *   strokeWidth: 5
+   * });
+   */
   Konva.Circle = function(config) {
     this.___init(config);
   };
@@ -13206,23 +13764,28 @@
   Konva.Util.extend(Konva.Circle, Konva.Shape);
 
   // add getters setters
-  Konva.Factory.addGetterSetter(Konva.Circle, 'radius', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Circle,
+    'radius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   Konva.Factory.addOverloadedGetterSetter(Konva.Circle, 'radius');
 
   /**
-     * get/set radius
-     * @name radius
-     * @method
-     * @memberof Konva.Circle.prototype
-     * @param {Number} radius
-     * @returns {Number}
-     * @example
-     * // get radius
-     * var radius = circle.radius();
-     *
-     * // set radius
-     * circle.radius(10);
-     */
+   * get/set radius
+   * @name radius
+   * @method
+   * @memberof Konva.Circle.prototype
+   * @param {Number} radius
+   * @returns {Number}
+   * @example
+   * // get radius
+   * var radius = circle.radius();
+   *
+   * // set radius
+   * circle.radius(10);
+   */
 
   Konva.Collection.mapMethods(Konva.Circle);
 })(Konva);
@@ -13230,15 +13793,16 @@
 (function() {
   'use strict';
   // the 0.0001 offset fixes a bug in Chrome 27
-  var PIx2 = Math.PI * 2 - 0.0001, ELLIPSE = 'Ellipse';
+  var PIx2 = Math.PI * 2 - 0.0001,
+    ELLIPSE = 'Ellipse';
 
   /**
-     * Ellipse constructor
-     * @constructor
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Object} config.radius defines x and y radius
-     * @param {String} [config.fill] fill color
+   * Ellipse constructor
+   * @constructor
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Object} config.radius defines x and y radius
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -13289,7 +13853,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -13309,15 +13873,15 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var ellipse = new Konva.Ellipse({
-     *   radius : {
-     *     x : 50,
-     *     y : 50
-     *   },
-     *   fill: 'red'
-     * });
-     */
+   * @example
+   * var ellipse = new Konva.Ellipse({
+   *   radius : {
+   *     x : 50,
+   *     y : 50
+   *   },
+   *   fill: 'red'
+   * });
+   */
   Konva.Ellipse = function(config) {
     this.___init(config);
   };
@@ -13331,7 +13895,8 @@
       this.sceneFunc(this._sceneFunc);
     },
     _sceneFunc: function(context) {
-      var rx = this.getRadiusX(), ry = this.getRadiusY();
+      var rx = this.getRadiusX(),
+        ry = this.getRadiusY();
 
       context.beginPath();
       context.save();
@@ -13372,56 +13937,66 @@
   Konva.Factory.addComponentsGetterSetter(Konva.Ellipse, 'radius', ['x', 'y']);
 
   /**
-     * get/set radius
-     * @name radius
-     * @method
-     * @memberof Konva.Ellipse.prototype
-     * @param {Object} radius
-     * @param {Number} radius.x
-     * @param {Number} radius.y
-     * @returns {Object}
-     * @example
-     * // get radius
-     * var radius = ellipse.radius();
-     *
-     * // set radius
-     * ellipse.radius({
-     *   x: 200,
-     *   y: 100
-     * });
-     */
+   * get/set radius
+   * @name radius
+   * @method
+   * @memberof Konva.Ellipse.prototype
+   * @param {Object} radius
+   * @param {Number} radius.x
+   * @param {Number} radius.y
+   * @returns {Object}
+   * @example
+   * // get radius
+   * var radius = ellipse.radius();
+   *
+   * // set radius
+   * ellipse.radius({
+   *   x: 200,
+   *   y: 100
+   * });
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Ellipse, 'radiusX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Ellipse,
+    'radiusX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set radius x
-     * @name radiusX
-     * @method
-     * @memberof Konva.Ellipse.prototype
-     * @param {Number} x
-     * @returns {Number}
-     * @example
-     * // get radius x
-     * var radiusX = ellipse.radiusX();
-     *
-     * // set radius x
-     * ellipse.radiusX(200);
-     */
+   * get/set radius x
+   * @name radiusX
+   * @method
+   * @memberof Konva.Ellipse.prototype
+   * @param {Number} x
+   * @returns {Number}
+   * @example
+   * // get radius x
+   * var radiusX = ellipse.radiusX();
+   *
+   * // set radius x
+   * ellipse.radiusX(200);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Ellipse, 'radiusY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Ellipse,
+    'radiusY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set radius y
-     * @name radiusY
-     * @method
-     * @memberof Konva.Ellipse.prototype
-     * @param {Number} y
-     * @returns {Number}
-     * @example
-     * // get radius y
-     * var radiusY = ellipse.radiusY();
-     *
-     * // set radius y
-     * ellipse.radiusY(200);
-     */
+   * get/set radius y
+   * @name radiusY
+   * @method
+   * @memberof Konva.Ellipse.prototype
+   * @param {Number} y
+   * @returns {Number}
+   * @example
+   * // get radius y
+   * var radiusY = ellipse.radiusY();
+   *
+   * // set radius y
+   * ellipse.radiusY(200);
+   */
 
   Konva.Collection.mapMethods(Konva.Ellipse);
 })();
@@ -13431,14 +14006,14 @@
   // the 0.0001 offset fixes a bug in Chrome 27
   var PIx2 = Math.PI * 2 - 0.0001;
   /**
-     * Ring constructor
-     * @constructor
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Number} config.innerRadius
-     * @param {Number} config.outerRadius
-     * @param {Boolean} [config.clockwise]
-     * @param {String} [config.fill] fill color
+   * Ring constructor
+   * @constructor
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Number} config.innerRadius
+   * @param {Number} config.outerRadius
+   * @param {Boolean} [config.clockwise]
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -13489,7 +14064,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -13509,15 +14084,15 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var ring = new Konva.Ring({
-     *   innerRadius: 40,
-     *   outerRadius: 80,
-     *   fill: 'red',
-     *   stroke: 'black',
-     *   strokeWidth: 5
-     * });
-     */
+   * @example
+   * var ring = new Konva.Ring({
+   *   innerRadius: 40,
+   *   outerRadius: 80,
+   *   fill: 'red',
+   *   stroke: 'black',
+   *   strokeWidth: 5
+   * });
+   */
   Konva.Ring = function(config) {
     this.___init(config);
   };
@@ -13569,39 +14144,49 @@
   Konva.Util.extend(Konva.Ring, Konva.Shape);
 
   // add getters setters
-  Konva.Factory.addGetterSetter(Konva.Ring, 'innerRadius', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Ring,
+    'innerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get/set innerRadius
-     * @name innerRadius
-     * @method
-     * @memberof Konva.Ring.prototype
-     * @param {Number} innerRadius
-     * @returns {Number}
-     * @example
-     * // get inner radius
-     * var innerRadius = ring.innerRadius();
-     *
-     * // set inner radius
-     * ring.innerRadius(20);
-     */
-  Konva.Factory.addGetter(Konva.Ring, 'outerRadius', 0);
+   * get/set innerRadius
+   * @name innerRadius
+   * @method
+   * @memberof Konva.Ring.prototype
+   * @param {Number} innerRadius
+   * @returns {Number}
+   * @example
+   * // get inner radius
+   * var innerRadius = ring.innerRadius();
+   *
+   * // set inner radius
+   * ring.innerRadius(20);
+   */
+  Konva.Factory.addGetter(
+    Konva.Ring,
+    'outerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   Konva.Factory.addOverloadedGetterSetter(Konva.Ring, 'outerRadius');
 
   /**
-     * get/set outerRadius
-     * @name outerRadius
-     * @method
-     * @memberof Konva.Ring.prototype
-     * @param {Number} outerRadius
-     * @returns {Number}
-     * @example
-     * // get outer radius
-     * var outerRadius = ring.outerRadius();
-     *
-     * // set outer radius
-     * ring.outerRadius(20);
-     */
+   * get/set outerRadius
+   * @name outerRadius
+   * @method
+   * @memberof Konva.Ring.prototype
+   * @param {Number} outerRadius
+   * @returns {Number}
+   * @example
+   * // get outer radius
+   * var outerRadius = ring.outerRadius();
+   *
+   * // set outer radius
+   * ring.outerRadius(20);
+   */
 
   Konva.Collection.mapMethods(Konva.Ring);
 })();
@@ -13609,14 +14194,14 @@
 (function() {
   'use strict';
   /**
-     * Wedge constructor
-     * @constructor
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Number} config.angle in degrees
-     * @param {Number} config.radius
-     * @param {Boolean} [config.clockwise]
-     * @param {String} [config.fill] fill color
+   * Wedge constructor
+   * @constructor
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Number} config.angle in degrees
+   * @param {Number} config.radius
+   * @param {Boolean} [config.clockwise]
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -13667,7 +14252,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -13687,17 +14272,17 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * // draw a wedge that's pointing downwards
-     * var wedge = new Konva.Wedge({
-     *   radius: 40,
-     *   fill: 'red',
-     *   stroke: 'black'
-     *   strokeWidth: 5,
-     *   angleDeg: 60,
-     *   rotationDeg: -120
-     * });
-     */
+   * @example
+   * // draw a wedge that's pointing downwards
+   * var wedge = new Konva.Wedge({
+   *   radius: 40,
+   *   fill: 'red',
+   *   stroke: 'black'
+   *   strokeWidth: 5,
+   *   angleDeg: 60,
+   *   rotationDeg: -120
+   * });
+   */
   Konva.Wedge = function(config) {
     this.___init(config);
   };
@@ -13750,59 +14335,69 @@
   Konva.Util.extend(Konva.Wedge, Konva.Shape);
 
   // add getters setters
-  Konva.Factory.addGetterSetter(Konva.Wedge, 'radius', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Wedge,
+    'radius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get/set radius
-     * @name radius
-     * @method
-     * @memberof Konva.Wedge.prototype
-     * @param {Number} radius
-     * @returns {Number}
-     * @example
-     * // get radius
-     * var radius = wedge.radius();
-     *
-     * // set radius
-     * wedge.radius(10);
-     */
+   * get/set radius
+   * @name radius
+   * @method
+   * @memberof Konva.Wedge.prototype
+   * @param {Number} radius
+   * @returns {Number}
+   * @example
+   * // get radius
+   * var radius = wedge.radius();
+   *
+   * // set radius
+   * wedge.radius(10);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Wedge, 'angle', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Wedge,
+    'angle',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get/set angle in degrees
-     * @name angle
-     * @method
-     * @memberof Konva.Wedge.prototype
-     * @param {Number} angle
-     * @returns {Number}
-     * @example
-     * // get angle
-     * var angle = wedge.angle();
-     *
-     * // set angle
-     * wedge.angle(20);
-     */
+   * get/set angle in degrees
+   * @name angle
+   * @method
+   * @memberof Konva.Wedge.prototype
+   * @param {Number} angle
+   * @returns {Number}
+   * @example
+   * // get angle
+   * var angle = wedge.angle();
+   *
+   * // set angle
+   * wedge.angle(20);
+   */
 
   Konva.Factory.addGetterSetter(Konva.Wedge, 'clockwise', false);
 
   /**
-     * get/set clockwise flag
-     * @name clockwise
-     * @method
-     * @memberof Konva.Wedge.prototype
-     * @param {Number} clockwise
-     * @returns {Number}
-     * @example
-     * // get clockwise flag
-     * var clockwise = wedge.clockwise();
-     *
-     * // draw wedge counter-clockwise
-     * wedge.clockwise(false);
-     *
-     * // draw wedge clockwise
-     * wedge.clockwise(true);
-     */
+   * get/set clockwise flag
+   * @name clockwise
+   * @method
+   * @memberof Konva.Wedge.prototype
+   * @param {Number} clockwise
+   * @returns {Number}
+   * @example
+   * // get clockwise flag
+   * var clockwise = wedge.clockwise();
+   *
+   * // draw wedge counter-clockwise
+   * wedge.clockwise(false);
+   *
+   * // draw wedge clockwise
+   * wedge.clockwise(true);
+   */
 
   Konva.Factory.backCompat(Konva.Wedge, {
     angleDeg: 'angle',
@@ -13816,15 +14411,15 @@
 (function(Konva) {
   'use strict';
   /**
-     * Arc constructor
-     * @constructor
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Number} config.angle in degrees
-     * @param {Number} config.innerRadius
-     * @param {Number} config.outerRadius
-     * @param {Boolean} [config.clockwise]
-     * @param {String} [config.fill] fill color
+   * Arc constructor
+   * @constructor
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Number} config.angle in degrees
+   * @param {Number} config.innerRadius
+   * @param {Number} config.outerRadius
+   * @param {Boolean} [config.clockwise]
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -13875,7 +14470,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -13895,18 +14490,18 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * // draw a Arc that's pointing downwards
-     * var arc = new Konva.Arc({
-     *   innerRadius: 40,
-     *   outerRadius: 80,
-     *   fill: 'red',
-     *   stroke: 'black'
-     *   strokeWidth: 5,
-     *   angle: 60,
-     *   rotationDeg: -120
-     * });
-     */
+   * @example
+   * // draw a Arc that's pointing downwards
+   * var arc = new Konva.Arc({
+   *   innerRadius: 40,
+   *   outerRadius: 80,
+   *   fill: 'red',
+   *   stroke: 'black'
+   *   strokeWidth: 5,
+   *   angle: 60,
+   *   rotationDeg: -120
+   * });
+   */
   Konva.Arc = function(config) {
     this.___init(config);
   };
@@ -13920,7 +14515,8 @@
       this.sceneFunc(this._sceneFunc);
     },
     _sceneFunc: function(context) {
-      var angle = Konva.getAngle(this.angle()), clockwise = this.clockwise();
+      var angle = Konva.getAngle(this.angle()),
+        clockwise = this.clockwise();
 
       context.beginPath();
       context.arc(0, 0, this.getOuterRadius(), 0, angle, clockwise);
@@ -13954,76 +14550,91 @@
   Konva.Util.extend(Konva.Arc, Konva.Shape);
 
   // add getters setters
-  Konva.Factory.addGetterSetter(Konva.Arc, 'innerRadius', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Arc,
+    'innerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get/set innerRadius
-     * @name innerRadius
-     * @method
-     * @memberof Konva.Arc.prototype
-     * @param {Number} innerRadius
-     * @returns {Number}
-     * @example
-     * // get inner radius
-     * var innerRadius = arc.innerRadius();
-     *
-     * // set inner radius
-     * arc.innerRadius(20);
-     */
+   * get/set innerRadius
+   * @name innerRadius
+   * @method
+   * @memberof Konva.Arc.prototype
+   * @param {Number} innerRadius
+   * @returns {Number}
+   * @example
+   * // get inner radius
+   * var innerRadius = arc.innerRadius();
+   *
+   * // set inner radius
+   * arc.innerRadius(20);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Arc, 'outerRadius', 0);
-
-  /**
-     * get/set outerRadius
-     * @name outerRadius
-     * @method
-     * @memberof Konva.Arc.prototype
-     * @param {Number} outerRadius
-     * @returns {Number}
-     * @example
-     * // get outer radius
-     * var outerRadius = arc.outerRadius();
-     *
-     * // set outer radius
-     * arc.outerRadius(20);
-     */
-
-  Konva.Factory.addGetterSetter(Konva.Arc, 'angle', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Arc,
+    'outerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get/set angle in degrees
-     * @name angle
-     * @method
-     * @memberof Konva.Arc.prototype
-     * @param {Number} angle
-     * @returns {Number}
-     * @example
-     * // get angle
-     * var angle = arc.angle();
-     *
-     * // set angle
-     * arc.angle(20);
-     */
+   * get/set outerRadius
+   * @name outerRadius
+   * @method
+   * @memberof Konva.Arc.prototype
+   * @param {Number} outerRadius
+   * @returns {Number}
+   * @example
+   * // get outer radius
+   * var outerRadius = arc.outerRadius();
+   *
+   * // set outer radius
+   * arc.outerRadius(20);
+   */
+
+  Konva.Factory.addGetterSetter(
+    Konva.Arc,
+    'angle',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set angle in degrees
+   * @name angle
+   * @method
+   * @memberof Konva.Arc.prototype
+   * @param {Number} angle
+   * @returns {Number}
+   * @example
+   * // get angle
+   * var angle = arc.angle();
+   *
+   * // set angle
+   * arc.angle(20);
+   */
 
   Konva.Factory.addGetterSetter(Konva.Arc, 'clockwise', false);
 
   /**
-     * get/set clockwise flag
-     * @name clockwise
-     * @method
-     * @memberof Konva.Arc.prototype
-     * @param {Boolean} clockwise
-     * @returns {Boolean}
-     * @example
-     * // get clockwise flag
-     * var clockwise = arc.clockwise();
-     *
-     * // draw arc counter-clockwise
-     * arc.clockwise(false);
-     *
-     * // draw arc clockwise
-     * arc.clockwise(true);
-     */
+   * get/set clockwise flag
+   * @name clockwise
+   * @method
+   * @memberof Konva.Arc.prototype
+   * @param {Boolean} clockwise
+   * @returns {Boolean}
+   * @example
+   * // get clockwise flag
+   * var clockwise = arc.clockwise();
+   *
+   * // draw arc counter-clockwise
+   * arc.clockwise(false);
+   *
+   * // draw arc clockwise
+   * arc.clockwise(true);
+   */
 
   Konva.Collection.mapMethods(Konva.Arc);
 })(Konva);
@@ -14034,14 +14645,14 @@
   var IMAGE = 'Image';
 
   /**
-     * Image constructor
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Image} config.image
-     * @param {Object} [config.crop]
-     * @param {String} [config.fill] fill color
+   * Image constructor
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Image} config.image
+   * @param {Object} [config.crop]
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -14092,7 +14703,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -14112,19 +14723,19 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var imageObj = new Image();
-     * imageObj.onload = function() {
-     *   var image = new Konva.Image({
-     *     x: 200,
-     *     y: 50,
-     *     image: imageObj,
-     *     width: 100,
-     *     height: 100
-     *   });
-     * };
-     * imageObj.src = '/path/to/image.jpg'
-     */
+   * @example
+   * var imageObj = new Image();
+   * imageObj.onload = function() {
+   *   var image = new Konva.Image({
+   *     x: 200,
+   *     y: 50,
+   *     image: imageObj,
+   *     width: 100,
+   *     height: 100
+   *   });
+   * };
+   * imageObj.src = '/path/to/image.jpg'
+   */
   Konva.Image = function(config) {
     this.___init(config);
   };
@@ -14184,7 +14795,8 @@
       }
     },
     _hitFunc: function(context) {
-      var width = this.getWidth(), height = this.getHeight();
+      var width = this.getWidth(),
+        height = this.getHeight();
 
       context.beginPath();
       context.rect(0, 0, width, height);
@@ -14206,20 +14818,20 @@
   Konva.Factory.addGetterSetter(Konva.Image, 'image');
 
   /**
-     * set image
-     * @name setImage
-     * @method
-     * @memberof Konva.Image.prototype
-     * @param {Image} image
-     */
+   * set image
+   * @name setImage
+   * @method
+   * @memberof Konva.Image.prototype
+   * @param {Image} image
+   */
 
   /**
-     * get image
-     * @name getImage
-     * @method
-     * @memberof Konva.Image.prototype
-     * @returns {Image}
-     */
+   * get image
+   * @name getImage
+   * @method
+   * @memberof Konva.Image.prototype
+   * @returns {Image}
+   */
 
   Konva.Factory.addComponentsGetterSetter(Konva.Image, 'crop', [
     'x',
@@ -14228,108 +14840,128 @@
     'height'
   ]);
   /**
-     * get/set crop
-     * @method
-     * @name crop
-     * @memberof Konva.Image.prototype
-     * @param {Object} crop
-     * @param {Number} crop.x
-     * @param {Number} crop.y
-     * @param {Number} crop.width
-     * @param {Number} crop.height
-     * @returns {Object}
-     * @example
-     * // get crop
-     * var crop = image.crop();
-     *
-     * // set crop
-     * image.crop({
-     *   x: 20,
-     *   y: 20,
-     *   width: 20,
-     *   height: 20
-     * });
-     */
+   * get/set crop
+   * @method
+   * @name crop
+   * @memberof Konva.Image.prototype
+   * @param {Object} crop
+   * @param {Number} crop.x
+   * @param {Number} crop.y
+   * @param {Number} crop.width
+   * @param {Number} crop.height
+   * @returns {Object}
+   * @example
+   * // get crop
+   * var crop = image.crop();
+   *
+   * // set crop
+   * image.crop({
+   *   x: 20,
+   *   y: 20,
+   *   width: 20,
+   *   height: 20
+   * });
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Image, 'cropX', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Image,
+    'cropX',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set crop x
-     * @method
-     * @name cropX
-     * @memberof Konva.Image.prototype
-     * @param {Number} x
-     * @returns {Number}
-     * @example
-     * // get crop x
-     * var cropX = image.cropX();
-     *
-     * // set crop x
-     * image.cropX(20);
-     */
+   * get/set crop x
+   * @method
+   * @name cropX
+   * @memberof Konva.Image.prototype
+   * @param {Number} x
+   * @returns {Number}
+   * @example
+   * // get crop x
+   * var cropX = image.cropX();
+   *
+   * // set crop x
+   * image.cropX(20);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Image, 'cropY', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Image,
+    'cropY',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set crop y
-     * @name cropY
-     * @method
-     * @memberof Konva.Image.prototype
-     * @param {Number} y
-     * @returns {Number}
-     * @example
-     * // get crop y
-     * var cropY = image.cropY();
-     *
-     * // set crop y
-     * image.cropY(20);
-     */
+   * get/set crop y
+   * @name cropY
+   * @method
+   * @memberof Konva.Image.prototype
+   * @param {Number} y
+   * @returns {Number}
+   * @example
+   * // get crop y
+   * var cropY = image.cropY();
+   *
+   * // set crop y
+   * image.cropY(20);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Image, 'cropWidth', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Image,
+    'cropWidth',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set crop width
-     * @name cropWidth
-     * @method
-     * @memberof Konva.Image.prototype
-     * @param {Number} width
-     * @returns {Number}
-     * @example
-     * // get crop width
-     * var cropWidth = image.cropWidth();
-     *
-     * // set crop width
-     * image.cropWidth(20);
-     */
+   * get/set crop width
+   * @name cropWidth
+   * @method
+   * @memberof Konva.Image.prototype
+   * @param {Number} width
+   * @returns {Number}
+   * @example
+   * // get crop width
+   * var cropWidth = image.cropWidth();
+   *
+   * // set crop width
+   * image.cropWidth(20);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Image, 'cropHeight', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Image,
+    'cropHeight',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
   /**
-     * get/set crop height
-     * @name cropHeight
-     * @method
-     * @memberof Konva.Image.prototype
-     * @param {Number} height
-     * @returns {Number}
-     * @example
-     * // get crop height
-     * var cropHeight = image.cropHeight();
-     *
-     * // set crop height
-     * image.cropHeight(20);
-     */
+   * get/set crop height
+   * @name cropHeight
+   * @method
+   * @memberof Konva.Image.prototype
+   * @param {Number} height
+   * @returns {Number}
+   * @example
+   * // get crop height
+   * var cropHeight = image.cropHeight();
+   *
+   * // set crop height
+   * image.cropHeight(20);
+   */
 
   Konva.Collection.mapMethods(Konva.Image);
 
   /**
-     * load image from given url and create `Konva.Image` instance
-     * @method
-     * @memberof Konva.Image
-     * @param {String} url image source
-     * @param {Function} callback with Konva.Image instance as first argument
-     * @example
-     *  Konva.Image.fromURL(imageURL, function(image){
-     *    // image is Konva.Image instance
-     *    layer.add(image);
-     *    layer.draw();
-     *  });
-     */
+   * load image from given url and create `Konva.Image` instance
+   * @method
+   * @memberof Konva.Image
+   * @param {String} url image source
+   * @param {Function} callback with Konva.Image instance as first argument
+   * @example
+   *  Konva.Image.fromURL(imageURL, function(image){
+   *    // image is Konva.Image instance
+   *    layer.add(image);
+   *    layer.draw();
+   *  });
+   */
   Konva.Image.fromURL = function(url, callback) {
     var img = new Image();
     img.onload = function() {
@@ -14338,6 +14970,7 @@
       });
       callback(image);
     };
+    img.crossOrigin = 'Anonymous';
     img.src = url;
   };
 })();
@@ -14358,6 +14991,8 @@
     LEFT = 'left',
     TEXT = 'text',
     TEXT_UPPER = 'Text',
+    TOP = 'top',
+    BOTTOM = 'bottom',
     MIDDLE = 'middle',
     NORMAL = 'normal',
     PX_SPACE = 'px ',
@@ -14374,6 +15009,7 @@
       'fontVariant',
       'padding',
       'align',
+      'verticalAlign',
       'lineHeight',
       'text',
       'width',
@@ -14405,6 +15041,7 @@
    * @param {String} [config.fontVariant] can be normal or small-caps.  Default is normal
    * @param {String} config.text
    * @param {String} [config.align] can be left, center, or right
+   * @param {String} [config.verticalAlign] can be top, middle or bottom
    * @param {Number} [config.padding]
    * @param {Number} [config.lineHeight] default is 1
    * @param {String} [config.wrap] can be word, char, or none. Default is word
@@ -14536,11 +15173,13 @@
       this.hitFunc(this._hitFunc);
     },
     _sceneFunc: function(context) {
-      var p = this.getPadding(),
+      var padding = this.getPadding(),
         textHeight = this.getTextHeight(),
         lineHeightPx = this.getLineHeight() * textHeight,
         textArr = this.textArr,
         textArrLen = textArr.length,
+        verticalAlign = this.getVerticalAlign(),
+        alignY = 0,
         align = this.getAlign(),
         totalWidth = this.getWidth(),
         letterSpacing = this.getLetterSpacing(),
@@ -14553,35 +15192,54 @@
 
       context.setAttr('textBaseline', MIDDLE);
       context.setAttr('textAlign', LEFT);
-      context.save();
-      if (p) {
-        context.translate(p, 0);
-        context.translate(0, p + textHeight / 2);
+
+      // handle vertical alignment
+      if (verticalAlign === MIDDLE) {
+        alignY =
+          (this.getHeight() - textArrLen * lineHeightPx - padding * 2) / 2;
+      } else if (verticalAlign === BOTTOM) {
+        alignY = this.getHeight() - textArrLen * lineHeightPx - padding * 2;
+      }
+
+      if (padding) {
+        context.translate(padding, 0);
+        context.translate(0, alignY + padding + lineHeightPx / 2);
       } else {
-        context.translate(0, textHeight / 2);
+        context.translate(0, alignY + lineHeightPx / 2);
       }
 
       // draw text lines
       for (n = 0; n < textArrLen; n++) {
         var obj = textArr[n],
           text = obj.text,
-          width = obj.width;
+          width = obj.width,
+          lastLine = n !== textArrLen - 1,
+          spacesNumber,
+          oneWord,
+          lineWidth;
 
         // horizontal alignment
         context.save();
         if (align === RIGHT) {
-          context.translate(totalWidth - width - p * 2, 0);
+          context.translate(totalWidth - width - padding * 2, 0);
         } else if (align === CENTER) {
-          context.translate((totalWidth - width - p * 2) / 2, 0);
+          context.translate((totalWidth - width - padding * 2) / 2, 0);
         }
 
         if (textDecoration.indexOf('underline') !== -1) {
           context.save();
           context.beginPath();
+
           context.moveTo(0, Math.round(lineHeightPx / 2));
-          context.lineTo(Math.round(width), Math.round(lineHeightPx / 2));
+          spacesNumber = text.split(' ').length - 1;
+          oneWord = spacesNumber === 0;
+          lineWidth =
+            align === JUSTIFY && lastLine && !oneWord
+              ? totalWidth - padding * 2
+              : width;
+          context.lineTo(Math.round(lineWidth), Math.round(lineHeightPx / 2));
           // TODO: I have no idea what is real ratio
-          // just /20 looks good enough
+          // just /15 looks good enough
           context.lineWidth = fontSize / 15;
           context.strokeStyle = fill;
           context.stroke();
@@ -14591,7 +15249,13 @@
           context.save();
           context.beginPath();
           context.moveTo(0, 0);
-          context.lineTo(Math.round(width), 0);
+          spacesNumber = text.split(' ').length - 1;
+          oneWord = spacesNumber === 0;
+          lineWidth =
+            align === JUSTIFY && lastLine && !oneWord
+              ? totalWidth - padding * 2
+              : width;
+          context.lineTo(Math.round(lineWidth), 0);
           context.lineWidth = fontSize / 15;
           context.strokeStyle = fill;
           context.stroke();
@@ -14599,13 +15263,13 @@
         }
         if (letterSpacing !== 0 || align === JUSTIFY) {
           //   var words = text.split(' ');
-          var spacesNumber = text.split(' ').length - 1;
+          spacesNumber = text.split(' ').length - 1;
           for (var li = 0; li < text.length; li++) {
             var letter = text[li];
             // skip justify for the last line
             if (letter === ' ' && n !== textArrLen - 1 && align === JUSTIFY) {
               context.translate(
-                Math.floor((totalWidth - width) / spacesNumber),
+                Math.floor((totalWidth - padding * 2 - width) / spacesNumber),
                 0
               );
             }
@@ -14622,9 +15286,10 @@
           context.fillStrokeShape(this);
         }
         context.restore();
-        context.translate(0, lineHeightPx);
+        if (textArrLen > 1) {
+          context.translate(0, lineHeightPx);
+        }
       }
-      context.restore();
     },
     _hitFunc: function(context) {
       var width = this.getWidth(),
@@ -14635,14 +15300,6 @@
       context.closePath();
       context.fillStrokeShape(this);
     },
-    // _useBufferCanvas: function(caching) {
-    //     var useIt = Konva.Shape.prototype._useBufferCanvas.call(this, caching);
-    //     if (useIt) {
-    //       return true;
-    //     }
-    //     return false;
-    //     // return isFirefox && this.hasFill() && this.hasShadow();
-    // },
     setText: function(text) {
       var str = Konva.Util._isString(text) ? text : (text || '').toString();
       this._setAttr(TEXT, str);
@@ -14684,7 +15341,7 @@
       return this.textWidth;
     },
     /**
-     * get text height
+     * get height of one line text
      * @method
      * @memberof Konva.Text.prototype
      * @returns {Number}
@@ -14765,7 +15422,6 @@
         shouldAddEllipsis = this.getEllipsis() && !shouldWrap;
 
       this.textArr = [];
-      getDummyContext().save();
       getDummyContext().font = this._getContextFont();
       for (var i = 0, max = lines.length; i < max; ++i) {
         var line = lines[i];
@@ -14776,14 +15432,14 @@
         var lineWidth = this._getTextWidth(line);
         if (fixedWidth && lineWidth > maxWidth) {
           /*
-                     * if width is fixed and line does not fit entirely
-                     * break the line into multiple fitting lines
-                     */
+          * if width is fixed and line does not fit entirely
+          * break the line into multiple fitting lines
+          */
           while (line.length > 0) {
             /*
-                         * use binary search to find the longest substring that
-                         * that would fit in the specified width
-                         */
+            * use binary search to find the longest substring that
+            * that would fit in the specified width
+            */
             var low = 0,
               high = line.length,
               match = '',
@@ -14801,17 +15457,26 @@
               }
             }
             /*
-                         * 'low' is now the index of the substring end
-                         * 'match' is the substring
-                         * 'matchWidth' is the substring width in px
-                         */
+            * 'low' is now the index of the substring end
+            * 'match' is the substring
+            * 'matchWidth' is the substring width in px
+            */
             if (match) {
               // a fitting substring was found
               if (wrapAtWord) {
                 // try to find a space or dash where wrapping could be done
-                var wrapIndex =
-                  Math.max(match.lastIndexOf(SPACE), match.lastIndexOf(DASH)) +
-                  1;
+                var wrapIndex;
+                var nextChar = line[match.length];
+                var nextIsSpaceOrDash = nextChar === SPACE || nextChar === DASH;
+                if (nextIsSpaceOrDash && matchWidth <= maxWidth) {
+                  wrapIndex = match.length;
+                } else {
+                  wrapIndex =
+                    Math.max(
+                      match.lastIndexOf(SPACE),
+                      match.lastIndexOf(DASH)
+                    ) + 1;
+                }
                 if (wrapIndex > 0) {
                   // re-cut the substring found at the space/dash position
                   low = wrapIndex;
@@ -14827,9 +15492,9 @@
                 (fixedHeight && currentHeightPx + lineHeightPx > maxHeightPx)
               ) {
                 /*
-                                 * stop wrapping if wrapping is disabled or if adding
-                                 * one more line would overflow the fixed height
-                                 */
+                * stop wrapping if wrapping is disabled or if adding
+                * one more line would overflow the fixed height
+                */
                 break;
               }
               line = line.slice(low);
@@ -14860,7 +15525,6 @@
           break;
         }
       }
-      getDummyContext().restore();
       this.textHeight = fontSize;
       // var maxTextWidth = 0;
       // for(var j = 0; j < this.textArr.length; j++) {
@@ -14870,6 +15534,18 @@
     }
   };
   Konva.Util.extend(Konva.Text, Konva.Shape);
+
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'width',
+    Konva.Validators.getNumberOrAutoValidator()
+  );
+
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'height',
+    Konva.Validators.getNumberOrAutoValidator()
+  );
 
   // add getters setters
   Konva.Factory.addGetterSetter(Konva.Text, 'fontFamily', 'Arial');
@@ -14889,7 +15565,12 @@
    * text.fontFamily('Arial');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'fontSize', 12);
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'fontSize',
+    12,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set font size in pixels
@@ -14940,7 +15621,12 @@
    * text.fontVariant('small-caps');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'padding', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'padding',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * set padding
@@ -14977,7 +15663,29 @@
    * text.align('right');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'lineHeight', 1);
+  Konva.Factory.addGetterSetter(Konva.Text, 'verticalAlign', TOP);
+
+  /**
+   * get/set vertical align of text.  Can be 'top', 'middle', 'bottom'.
+   * @name verticalAlign
+   * @method
+   * @memberof Konva.Text.prototype
+   * @param {String} verticalAlign
+   * @returns {String}
+   * @example
+   * // get text vertical align
+   * var verticalAlign = text.verticalAlign();
+   *
+   * // center text
+   * text.verticalAlign('center');
+   */
+
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'lineHeight',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set line height.  The default is 1.
@@ -15029,7 +15737,12 @@
    * text.ellipsis(true);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'letterSpacing', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'letterSpacing',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * set letter spacing property. Default value is 0.
@@ -15398,7 +16111,12 @@
    * line.bezier(true);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Line, 'tension', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Line,
+    'tension',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set tension
@@ -15416,7 +16134,12 @@
    * line.tension(3);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Line, 'points', []);
+  Konva.Factory.addGetterSetter(
+    Konva.Line,
+    'points',
+    [],
+    Konva.Validators.getNumberArrayValidator()
+  );
   /**
    * get/set points array
    * @name points
@@ -15441,16 +16164,17 @@
 (function() {
   'use strict';
   /**
-     * Sprite constructor
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {String} config.animation animation key
-     * @param {Object} config.animations animation map
-     * @param {Integer} [config.frameIndex] animation frame index
-     * @param {Image} config.image image object
-     * @param {String} [config.fill] fill color
+   * Sprite constructor
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {String} config.animation animation key
+   * @param {Object} config.animations animation map
+   * @param {Integer} [config.frameIndex] animation frame index
+   * @param {Image} config.image image object
+   * @param {Integer} [config.frameRate] animation frame rate
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -15501,7 +16225,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -15521,40 +16245,40 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var imageObj = new Image();
-     * imageObj.onload = function() {
-     *   var sprite = new Konva.Sprite({
-     *     x: 200,
-     *     y: 100,
-     *     image: imageObj,
-     *     animation: 'standing',
-     *     animations: {
-     *       standing: [
-     *         // x, y, width, height (6 frames)
-     *         0, 0, 49, 109,
-     *         52, 0, 49, 109,
-     *         105, 0, 49, 109,
-     *         158, 0, 49, 109,
-     *         210, 0, 49, 109,
-     *         262, 0, 49, 109
-     *       ],
-     *       kicking: [
-     *         // x, y, width, height (6 frames)
-     *         0, 109, 45, 98,
-     *         45, 109, 45, 98,
-     *         95, 109, 63, 98,
-     *         156, 109, 70, 98,
-     *         229, 109, 60, 98,
-     *         287, 109, 41, 98
-     *       ]
-     *     },
-     *     frameRate: 7,
-     *     frameIndex: 0
-     *   });
-     * };
-     * imageObj.src = '/path/to/image.jpg'
-     */
+   * @example
+   * var imageObj = new Image();
+   * imageObj.onload = function() {
+   *   var sprite = new Konva.Sprite({
+   *     x: 200,
+   *     y: 100,
+   *     image: imageObj,
+   *     animation: 'standing',
+   *     animations: {
+   *       standing: [
+   *         // x, y, width, height (6 frames)
+   *         0, 0, 49, 109,
+   *         52, 0, 49, 109,
+   *         105, 0, 49, 109,
+   *         158, 0, 49, 109,
+   *         210, 0, 49, 109,
+   *         262, 0, 49, 109
+   *       ],
+   *       kicking: [
+   *         // x, y, width, height (6 frames)
+   *         0, 109, 45, 98,
+   *         45, 109, 45, 98,
+   *         95, 109, 63, 98,
+   *         156, 109, 70, 98,
+   *         229, 109, 60, 98,
+   *         287, 109, 41, 98
+   *       ]
+   *     },
+   *     frameRate: 7,
+   *     frameIndex: 0
+   *   });
+   * };
+   * imageObj.src = '/path/to/image.jpg'
+   */
   Konva.Sprite = function(config) {
     this.___init(config);
   };
@@ -15613,7 +16337,8 @@
 
       if (image) {
         if (offsets) {
-          var offset = offsets[anim], ix2 = index * 2;
+          var offset = offsets[anim],
+            ix2 = index * 2;
           context.drawImage(
             image,
             x,
@@ -15663,10 +16388,10 @@
       }, 1000 / this.getFrameRate());
     },
     /**
-         * start sprite animation
-         * @method
-         * @memberof Konva.Sprite.prototype
-         */
+     * start sprite animation
+     * @method
+     * @memberof Konva.Sprite.prototype
+     */
     start: function() {
       var layer = this.getLayer();
 
@@ -15681,20 +16406,20 @@
       this.anim.start();
     },
     /**
-         * stop sprite animation
-         * @method
-         * @memberof Konva.Sprite.prototype
-         */
+     * stop sprite animation
+     * @method
+     * @memberof Konva.Sprite.prototype
+     */
     stop: function() {
       this.anim.stop();
       clearInterval(this.interval);
     },
     /**
-         * determine if animation of sprite is running or not.  returns true or false
-         * @method
-         * @memberof Konva.Animation.prototype
-         * @returns {Boolean}
-         */
+     * determine if animation of sprite is running or not.  returns true or false
+     * @method
+     * @memberof Konva.Animation.prototype
+     * @returns {Boolean}
+     */
     isRunning: function() {
       return this.anim.isRunning();
     },
@@ -15718,144 +16443,154 @@
   Konva.Factory.addGetterSetter(Konva.Sprite, 'animation');
 
   /**
-     * get/set animation key
-     * @name animation
-     * @method
-     * @memberof Konva.Sprite.prototype
-     * @param {String} anim animation key
-     * @returns {String}
-     * @example
-     * // get animation key
-     * var animation = sprite.animation();
-     *
-     * // set animation key
-     * sprite.animation('kicking');
-     */
+   * get/set animation key
+   * @name animation
+   * @method
+   * @memberof Konva.Sprite.prototype
+   * @param {String} anim animation key
+   * @returns {String}
+   * @example
+   * // get animation key
+   * var animation = sprite.animation();
+   *
+   * // set animation key
+   * sprite.animation('kicking');
+   */
 
   Konva.Factory.addGetterSetter(Konva.Sprite, 'animations');
 
   /**
-     * get/set animations map
-     * @name animations
-     * @method
-     * @memberof Konva.Sprite.prototype
-     * @param {Object} animations
-     * @returns {Object}
-     * @example
-     * // get animations map
-     * var animations = sprite.animations();
-     *
-     * // set animations map
-     * sprite.animations({
-     *   standing: [
-     *     // x, y, width, height (6 frames)
-     *     0, 0, 49, 109,
-     *     52, 0, 49, 109,
-     *     105, 0, 49, 109,
-     *     158, 0, 49, 109,
-     *     210, 0, 49, 109,
-     *     262, 0, 49, 109
-     *   ],
-     *   kicking: [
-     *     // x, y, width, height (6 frames)
-     *     0, 109, 45, 98,
-     *     45, 109, 45, 98,
-     *     95, 109, 63, 98,
-     *     156, 109, 70, 98,
-     *     229, 109, 60, 98,
-     *     287, 109, 41, 98
-     *   ]
-     * });
-     */
+   * get/set animations map
+   * @name animations
+   * @method
+   * @memberof Konva.Sprite.prototype
+   * @param {Object} animations
+   * @returns {Object}
+   * @example
+   * // get animations map
+   * var animations = sprite.animations();
+   *
+   * // set animations map
+   * sprite.animations({
+   *   standing: [
+   *     // x, y, width, height (6 frames)
+   *     0, 0, 49, 109,
+   *     52, 0, 49, 109,
+   *     105, 0, 49, 109,
+   *     158, 0, 49, 109,
+   *     210, 0, 49, 109,
+   *     262, 0, 49, 109
+   *   ],
+   *   kicking: [
+   *     // x, y, width, height (6 frames)
+   *     0, 109, 45, 98,
+   *     45, 109, 45, 98,
+   *     95, 109, 63, 98,
+   *     156, 109, 70, 98,
+   *     229, 109, 60, 98,
+   *     287, 109, 41, 98
+   *   ]
+   * });
+   */
 
   Konva.Factory.addGetterSetter(Konva.Sprite, 'frameOffsets');
 
   /**
-    * get/set offsets map
-    * @name offsets
-    * @method
-    * @memberof Konva.Sprite.prototype
-    * @param {Object} offsets
-    * @returns {Object}
-    * @example
-    * // get offsets map
-    * var offsets = sprite.offsets();
-    *
-    * // set offsets map
-    * sprite.offsets({
-    *   standing: [
-    *     // x, y (6 frames)
-    *     0, 0,
-    *     0, 0,
-    *     5, 0,
-    *     0, 0,
-    *     0, 3,
-    *     2, 0
-    *   ],
-    *   kicking: [
-    *     // x, y (6 frames)
-    *     0, 5,
-    *     5, 0,
-    *     10, 0,
-    *     0, 0,
-    *     2, 1,
-    *     0, 0
-    *   ]
-    * });
-    */
+   * get/set offsets map
+   * @name offsets
+   * @method
+   * @memberof Konva.Sprite.prototype
+   * @param {Object} offsets
+   * @returns {Object}
+   * @example
+   * // get offsets map
+   * var offsets = sprite.offsets();
+   *
+   * // set offsets map
+   * sprite.offsets({
+   *   standing: [
+   *     // x, y (6 frames)
+   *     0, 0,
+   *     0, 0,
+   *     5, 0,
+   *     0, 0,
+   *     0, 3,
+   *     2, 0
+   *   ],
+   *   kicking: [
+   *     // x, y (6 frames)
+   *     0, 5,
+   *     5, 0,
+   *     10, 0,
+   *     0, 0,
+   *     2, 1,
+   *     0, 0
+   *   ]
+   * });
+   */
 
   Konva.Factory.addGetterSetter(Konva.Sprite, 'image');
 
   /**
-     * get/set image
-     * @name image
-     * @method
-     * @memberof Konva.Sprite.prototype
-     * @param {Image} image
-     * @returns {Image}
-     * @example
-     * // get image
-     * var image = sprite.image();
-     *
-     * // set image
-     * sprite.image(imageObj);
-     */
+   * get/set image
+   * @name image
+   * @method
+   * @memberof Konva.Sprite.prototype
+   * @param {Image} image
+   * @returns {Image}
+   * @example
+   * // get image
+   * var image = sprite.image();
+   *
+   * // set image
+   * sprite.image(imageObj);
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Sprite, 'frameIndex', 0);
-
-  /**
-     * set/set animation frame index
-     * @name frameIndex
-     * @method
-     * @memberof Konva.Sprite.prototype
-     * @param {Integer} frameIndex
-     * @returns {Integer}
-     * @example
-     * // get animation frame index
-     * var frameIndex = sprite.frameIndex();
-     *
-     * // set animation frame index
-     * sprite.frameIndex(3);
-     */
-
-  Konva.Factory.addGetterSetter(Konva.Sprite, 'frameRate', 17);
+  Konva.Factory.addGetterSetter(
+    Konva.Sprite,
+    'frameIndex',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get/set frame rate in frames per second.  Increase this number to make the sprite
-     *  animation run faster, and decrease the number to make the sprite animation run slower
-     *  The default is 17 frames per second
-     * @name frameRate
-     * @method
-     * @memberof Konva.Sprite.prototype
-     * @param {Integer} frameRate
-     * @returns {Integer}
-     * @example
-     * // get frame rate
-     * var frameRate = sprite.frameRate();
-     *
-     * // set frame rate to 2 frames per second
-     * sprite.frameRate(2);
-     */
+   * set/set animation frame index
+   * @name frameIndex
+   * @method
+   * @memberof Konva.Sprite.prototype
+   * @param {Integer} frameIndex
+   * @returns {Integer}
+   * @example
+   * // get animation frame index
+   * var frameIndex = sprite.frameIndex();
+   *
+   * // set animation frame index
+   * sprite.frameIndex(3);
+   */
+
+  Konva.Factory.addGetterSetter(
+    Konva.Sprite,
+    'frameRate',
+    17,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set frame rate in frames per second.  Increase this number to make the sprite
+   *  animation run faster, and decrease the number to make the sprite animation run slower
+   *  The default is 17 frames per second
+   * @name frameRate
+   * @method
+   * @memberof Konva.Sprite.prototype
+   * @param {Integer} frameRate
+   * @returns {Integer}
+   * @example
+   * // get frame rate
+   * var frameRate = sprite.frameRate();
+   *
+   * // set frame rate to 2 frames per second
+   * sprite.frameRate(2);
+   */
 
   Konva.Factory.backCompat(Konva.Sprite, {
     index: 'frameIndex',
@@ -15870,14 +16605,14 @@
 (function() {
   'use strict';
   /**
-     * Path constructor.
-     * @author Jason Follas
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {String} config.data SVG data string
-     * @param {String} [config.fill] fill color
+   * Path constructor.
+   * @author Jason Follas
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {String} config.data SVG data string
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -15928,7 +16663,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -15948,15 +16683,15 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var path = new Konva.Path({
-     *   x: 240,
-     *   y: 40,
-     *   data: 'M12.582,9.551C3.251,16.237,0.921,29.021,7.08,38.564l-2.36,1.689l4.893,2.262l4.893,2.262l-0.568-5.36l-0.567-5.359l-2.365,1.694c-4.657-7.375-2.83-17.185,4.352-22.33c7.451-5.338,17.817-3.625,23.156,3.824c5.337,7.449,3.625,17.813-3.821,23.152l2.857,3.988c9.617-6.893,11.827-20.277,4.935-29.896C35.591,4.87,22.204,2.658,12.582,9.551z',
-     *   fill: 'green',
-     *   scale: 2
-     * });
-     */
+   * @example
+   * var path = new Konva.Path({
+   *   x: 240,
+   *   y: 40,
+   *   data: 'M12.582,9.551C3.251,16.237,0.921,29.021,7.08,38.564l-2.36,1.689l4.893,2.262l4.893,2.262l-0.568-5.36l-0.567-5.359l-2.365,1.694c-4.657-7.375-2.83-17.185,4.352-22.33c7.451-5.338,17.817-3.625,23.156,3.824c5.337,7.449,3.625,17.813-3.821,23.152l2.857,3.988c9.617-6.893,11.827-20.277,4.935-29.896C35.591,4.87,22.204,2.658,12.582,9.551z',
+   *   fill: 'green',
+   *   scale: 2
+   * });
+   */
   Konva.Path = function(config) {
     this.___init(config);
   };
@@ -15971,8 +16706,16 @@
       this.className = 'Path';
 
       this.dataArray = Konva.Path.parsePathData(this.getData());
+      this.pathLength = 0;
+      for (var i = 0; i < this.dataArray.length; ++i) {
+        this.pathLength += this.dataArray[i].pathLength;
+      }
       this.on('dataChange.konva', function() {
         that.dataArray = Konva.Path.parsePathData(this.getData());
+        this.pathLength = 0;
+        for (var i = 0; i < this.dataArray.length; ++i) {
+          this.pathLength += this.dataArray[i].pathLength;
+        }
       });
 
       this.sceneFunc(this._sceneFunc);
@@ -16053,6 +16796,103 @@
         width: Math.round(maxX - minX),
         height: Math.round(maxY - minY)
       };
+    },
+    /**
+     * Return length of the path.
+     * @method
+     * @memberof Konva.Path.prototype
+     * @returns {Number} length
+     * @example
+     * var length = path.getLength();
+     */
+    getLength: function() {
+      return this.pathLength;
+    },
+    /**
+     * Get point on path at specific length of the path
+     * @method
+     * @memberof Konva.Path.prototype
+     * @param {Number} length length
+     * @returns {Object} point {x,y} point
+     * @example
+     * var point = path.getPointAtLength(10);
+     */
+    getPointAtLength: function(length) {
+      var point,
+        i = 0,
+        ii = this.dataArray.length;
+
+      if (!ii) {
+        return null;
+      }
+
+      while (i < ii && length > this.dataArray[i].pathLength) {
+        length -= this.dataArray[i].pathLength;
+        ++i;
+      }
+
+      if (i === ii) {
+        point = this.dataArray[i - 1].points.slice(-2);
+        return {
+          x: point[0],
+          y: point[1]
+        };
+      }
+
+      if (length < 0.01) {
+        point = this.dataArray[i].points.slice(0, 2);
+        return {
+          x: point[0],
+          y: point[1]
+        };
+      }
+
+      var cp = this.dataArray[i];
+      var p = cp.points;
+      switch (cp.command) {
+        case 'L':
+          return Konva.Path.getPointOnLine(
+            length,
+            cp.start.x,
+            cp.start.y,
+            p[0],
+            p[1]
+          );
+        case 'C':
+          return Konva.Path.getPointOnCubicBezier(
+            length / cp.pathLength,
+            cp.start.x,
+            cp.start.y,
+            p[0],
+            p[1],
+            p[2],
+            p[3],
+            p[4],
+            p[5]
+          );
+        case 'Q':
+          return Konva.Path.getPointOnQuadraticBezier(
+            length / cp.pathLength,
+            cp.start.x,
+            cp.start.y,
+            p[0],
+            p[1],
+            p[2],
+            p[3]
+          );
+        case 'A':
+          var cx = p[0],
+            cy = p[1],
+            rx = p[2],
+            ry = p[3],
+            theta = p[4],
+            dTheta = p[5],
+            psi = p[6];
+          theta += dTheta * length / cp.pathLength;
+          return Konva.Path.getPointOnEllipticalArc(cx, cy, rx, ry, theta, psi);
+      }
+
+      return null;
     }
   };
   Konva.Util.extend(Konva.Path, Konva.Shape);
@@ -16173,7 +17013,8 @@
     };
   };
   Konva.Path.getPointOnEllipticalArc = function(cx, cy, rx, ry, theta, psi) {
-    var cosPsi = Math.cos(psi), sinPsi = Math.sin(psi);
+    var cosPsi = Math.cos(psi),
+      sinPsi = Math.sin(psi);
     var pt = {
       x: rx * Math.cos(theta),
       y: ry * Math.sin(theta)
@@ -16252,26 +17093,35 @@
     // create array
     var arr = cs.split('|');
     var ca = [];
+    var coords = [];
     // init context point
     var cpx = 0;
     var cpy = 0;
+
+    var re = /([-+]?((\d+\.\d+)|((\d+)|(\.\d+)))(?:e[-+]?\d+)?)/gi;
+    var match;
     for (n = 1; n < arr.length; n++) {
       var str = arr[n];
       var c = str.charAt(0);
       str = str.slice(1);
-      // remove ,- for consistency
-      str = str.replace(new RegExp(',-', 'g'), '-');
-      // add commas so that it's easy to split
-      str = str.replace(new RegExp('-', 'g'), ',-');
-      str = str.replace(new RegExp('e,-', 'g'), 'e-');
-      var p = str.split(',');
-      if (p.length > 0 && p[0] === '') {
-        p.shift();
+
+      coords.length = 0;
+      while ((match = re.exec(str))) {
+        coords.push(match[0]);
       }
-      // convert strings to floats
-      for (var i = 0; i < p.length; i++) {
-        p[i] = parseFloat(p[i]);
+
+      // while ((match = re.exec(str))) {
+      //   coords.push(match[0]);
+      // }
+      var p = [];
+
+      for (var j = 0, jlen = coords.length; j < jlen; j++) {
+        var parsed = parseFloat(coords[j]);
+        if (!isNaN(parsed)) {
+          p.push(parsed);
+        }
       }
+
       while (p.length > 0) {
         if (isNaN(p[0])) {
           // case for a trailing comma before next command
@@ -16280,7 +17130,8 @@
 
         var cmd = null;
         var points = [];
-        var startX = cpx, startY = cpy;
+        var startX = cpx,
+          startY = cpy;
         // Move var from within the switch to up here (jshint)
         var prevCmd, ctlPtx, ctlPty; // Ss, Tt
         var rx, ry, psi, fa, fs, x1, y1; // Aa
@@ -16709,22 +17560,22 @@
   Konva.Factory.addGetterSetter(Konva.Path, 'data');
 
   /**
-     * set SVG path data string.  This method
-     *  also automatically parses the data string
-     *  into a data array.  Currently supported SVG data:
-     *  M, m, L, l, H, h, V, v, Q, q, T, t, C, c, S, s, A, a, Z, z
-     * @name setData
-     * @method
-     * @memberof Konva.Path.prototype
-     * @param {String} SVG path command string
-     */
+   * set SVG path data string.  This method
+   *  also automatically parses the data string
+   *  into a data array.  Currently supported SVG data:
+   *  M, m, L, l, H, h, V, v, Q, q, T, t, C, c, S, s, A, a, Z, z
+   * @name setData
+   * @method
+   * @memberof Konva.Path.prototype
+   * @param {String} SVG path command string
+   */
 
   /**
-     * get SVG path data string
-     * @name getData
-     * @method
-     * @memberof Konva.Path.prototype
-     */
+   * get SVG path data string
+   * @name getData
+   * @method
+   * @memberof Konva.Path.prototype
+   */
 
   Konva.Collection.mapMethods(Konva.Path);
 })();
@@ -17321,6 +18172,26 @@
   Konva.Util.extend(Konva.TextPath, Konva.Shape);
 
   // add setters and getters
+  Konva.Factory.addGetterSetter(Konva.TextPath, 'data');
+
+  /**
+   * set SVG path data string.  This method
+   *  also automatically parses the data string
+   *  into a data array.  Currently supported SVG data:
+   *  M, m, L, l, H, h, V, v, Q, q, T, t, C, c, S, s, A, a, Z, z
+   * @name setData
+   * @method
+   * @memberof Konva.TextPath.prototype
+   * @param {String} SVG path command string
+   */
+
+  /**
+   * get SVG path data string
+   * @name getData
+   * @method
+   * @memberof Konva.TextPath.prototype
+   */
+
   Konva.Factory.addGetterSetter(Konva.TextPath, 'fontFamily', 'Arial');
 
   /**
@@ -17338,7 +18209,12 @@
    * @memberof Konva.TextPath.prototype
    */
 
-  Konva.Factory.addGetterSetter(Konva.TextPath, 'fontSize', 12);
+  Konva.Factory.addGetterSetter(
+    Konva.TextPath,
+    'fontSize',
+    12,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * set font size
@@ -17384,7 +18260,12 @@
    * text.align('right');
    */
 
-  Konva.Factory.addGetterSetter(Konva.TextPath, 'letterSpacing', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.TextPath,
+    'letterSpacing',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * set letter spacing property. Default value is 0.
@@ -17461,14 +18342,14 @@
 (function() {
   'use strict';
   /**
-     * RegularPolygon constructor.&nbsp; Examples include triangles, squares, pentagons, hexagons, etc.
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Number} config.sides
-     * @param {Number} config.radius
-     * @param {String} [config.fill] fill color
+   * RegularPolygon constructor.&nbsp; Examples include triangles, squares, pentagons, hexagons, etc.
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Number} config.sides
+   * @param {Number} config.radius
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -17519,7 +18400,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -17539,17 +18420,17 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var hexagon = new Konva.RegularPolygon({
-     *   x: 100,
-     *   y: 200,
-     *   sides: 6,
-     *   radius: 70,
-     *   fill: 'red',
-     *   stroke: 'black',
-     *   strokeWidth: 4
-     * });
-     */
+   * @example
+   * var hexagon = new Konva.RegularPolygon({
+   *   x: 100,
+   *   y: 200,
+   *   sides: 6,
+   *   radius: 70,
+   *   fill: 'red',
+   *   stroke: 'black',
+   *   strokeWidth: 4
+   * });
+   */
   Konva.RegularPolygon = function(config) {
     this.___init(config);
   };
@@ -17563,7 +18444,11 @@
       this.sceneFunc(this._sceneFunc);
     },
     _sceneFunc: function(context) {
-      var sides = this.attrs.sides, radius = this.attrs.radius, n, x, y;
+      var sides = this.attrs.sides,
+        radius = this.attrs.radius,
+        n,
+        x,
+        y;
 
       context.beginPath();
       context.moveTo(0, 0 - radius);
@@ -17601,39 +18486,49 @@
   Konva.Util.extend(Konva.RegularPolygon, Konva.Shape);
 
   // add getters setters
-  Konva.Factory.addGetterSetter(Konva.RegularPolygon, 'radius', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.RegularPolygon,
+    'radius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * set radius
-     * @name setRadius
-     * @method
-     * @memberof Konva.RegularPolygon.prototype
-     * @param {Number} radius
-     */
+   * set radius
+   * @name setRadius
+   * @method
+   * @memberof Konva.RegularPolygon.prototype
+   * @param {Number} radius
+   */
 
   /**
-     * get radius
-     * @name getRadius
-     * @method
-     * @memberof Konva.RegularPolygon.prototype
-     */
+   * get radius
+   * @name getRadius
+   * @method
+   * @memberof Konva.RegularPolygon.prototype
+   */
 
-  Konva.Factory.addGetterSetter(Konva.RegularPolygon, 'sides', 0);
-
-  /**
-     * set number of sides
-     * @name setSides
-     * @method
-     * @memberof Konva.RegularPolygon.prototype
-     * @param {int} sides
-     */
+  Konva.Factory.addGetterSetter(
+    Konva.RegularPolygon,
+    'sides',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get number of sides
-     * @name getSides
-     * @method
-     * @memberof Konva.RegularPolygon.prototype
-     */
+   * set number of sides
+   * @name setSides
+   * @method
+   * @memberof Konva.RegularPolygon.prototype
+   * @param {int} sides
+   */
+
+  /**
+   * get number of sides
+   * @name getSides
+   * @method
+   * @memberof Konva.RegularPolygon.prototype
+   */
 
   Konva.Collection.mapMethods(Konva.RegularPolygon);
 })();
@@ -17641,15 +18536,15 @@
 (function() {
   'use strict';
   /**
-     * Star constructor
-     * @constructor
-     * @memberof Konva
-     * @augments Konva.Shape
-     * @param {Object} config
-     * @param {Integer} config.numPoints
-     * @param {Number} config.innerRadius
-     * @param {Number} config.outerRadius
-     * @param {String} [config.fill] fill color
+   * Star constructor
+   * @constructor
+   * @memberof Konva
+   * @augments Konva.Shape
+   * @param {Object} config
+   * @param {Integer} config.numPoints
+   * @param {Number} config.innerRadius
+   * @param {Number} config.outerRadius
+   * @param {String} [config.fill] fill color
      * @param {Image} [config.fillPatternImage] fill pattern image
      * @param {Number} [config.fillPatternX]
      * @param {Number} [config.fillPatternY]
@@ -17700,7 +18595,7 @@
      * @param {Boolean} [config.shadowEnabled] flag which enables or disables the shadow.  The default value is true
      * @param {Array} [config.dash]
      * @param {Boolean} [config.dashEnabled] flag which enables or disables the dashArray.  The default value is true
-     * @param {Number} [config.x]
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -17720,18 +18615,18 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * var star = new Konva.Star({
-     *   x: 100,
-     *   y: 200,
-     *   numPoints: 5,
-     *   innerRadius: 70,
-     *   outerRadius: 70,
-     *   fill: 'red',
-     *   stroke: 'black',
-     *   strokeWidth: 4
-     * });
-     */
+   * @example
+   * var star = new Konva.Star({
+   *   x: 100,
+   *   y: 200,
+   *   numPoints: 5,
+   *   innerRadius: 70,
+   *   outerRadius: 70,
+   *   fill: 'red',
+   *   stroke: 'black',
+   *   strokeWidth: 4
+   * });
+   */
   Konva.Star = function(config) {
     this.___init(config);
   };
@@ -17788,56 +18683,71 @@
   Konva.Util.extend(Konva.Star, Konva.Shape);
 
   // add getters setters
-  Konva.Factory.addGetterSetter(Konva.Star, 'numPoints', 5);
+  Konva.Factory.addGetterSetter(
+    Konva.Star,
+    'numPoints',
+    5,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * set number of points
-     * @name setNumPoints
-     * @method
-     * @memberof Konva.Star.prototype
-     * @param {Integer} points
-     */
+   * set number of points
+   * @name setNumPoints
+   * @method
+   * @memberof Konva.Star.prototype
+   * @param {Integer} points
+   */
 
   /**
-     * get number of points
-     * @name getNumPoints
-     * @method
-     * @memberof Konva.Star.prototype
-     */
+   * get number of points
+   * @name getNumPoints
+   * @method
+   * @memberof Konva.Star.prototype
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Star, 'innerRadius', 0);
-
-  /**
-     * set inner radius
-     * @name setInnerRadius
-     * @method
-     * @memberof Konva.Star.prototype
-     * @param {Number} radius
-     */
+  Konva.Factory.addGetterSetter(
+    Konva.Star,
+    'innerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get inner radius
-     * @name getInnerRadius
-     * @method
-     * @memberof Konva.Star.prototype
-     */
-
-  Konva.Factory.addGetterSetter(Konva.Star, 'outerRadius', 0);
-
-  /**
-     * set outer radius
-     * @name setOuterRadius
-     * @method
-     * @memberof Konva.Star.prototype
-     * @param {Number} radius
-     */
+   * set inner radius
+   * @name setInnerRadius
+   * @method
+   * @memberof Konva.Star.prototype
+   * @param {Number} radius
+   */
 
   /**
-     * get outer radius
-     * @name getOuterRadius
-     * @method
-     * @memberof Konva.Star.prototype
-     */
+   * get inner radius
+   * @name getInnerRadius
+   * @method
+   * @memberof Konva.Star.prototype
+   */
+
+  Konva.Factory.addGetterSetter(
+    Konva.Star,
+    'outerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * set outer radius
+   * @name setOuterRadius
+   * @method
+   * @memberof Konva.Star.prototype
+   * @param {Number} radius
+   */
+
+  /**
+   * get outer radius
+   * @name getOuterRadius
+   * @method
+   * @memberof Konva.Star.prototype
+   */
 
   Konva.Collection.mapMethods(Konva.Star);
 })();
@@ -17846,14 +18756,14 @@
   'use strict';
   // constants
   var ATTR_CHANGE_LIST = [
-    'fontFamily',
-    'fontSize',
-    'fontStyle',
-    'padding',
-    'lineHeight',
-    'text',
-    'width'
-  ],
+      'fontFamily',
+      'fontSize',
+      'fontStyle',
+      'padding',
+      'lineHeight',
+      'text',
+      'width'
+    ],
     CHANGE_KONVA = 'Change.konva',
     NONE = 'none',
     UP = 'up',
@@ -17865,11 +18775,11 @@
     attrChangeListLen = ATTR_CHANGE_LIST.length;
 
   /**
-     * Label constructor.&nbsp; Labels are groups that contain a Text and Tag shape
-     * @constructor
-     * @memberof Konva
-     * @param {Object} config
-     * @param {Number} [config.x]
+   * Label constructor.&nbsp; Labels are groups that contain a Text and Tag shape
+   * @constructor
+   * @memberof Konva
+   * @param {Object} config
+   * @param {Number} [config.x]
      * @param {Number} [config.y]
      * @param {Number} [config.width]
      * @param {Number} [config.height]
@@ -17889,38 +18799,38 @@
      *  the entire stage by dragging any portion of the stage
      * @param {Number} [config.dragDistance]
      * @param {Function} [config.dragBoundFunc]
-     * @example
-     * // create label
-     * var label = new Konva.Label({
-     *   x: 100,
-     *   y: 100,
-     *   draggable: true
-     * });
-     *
-     * // add a tag to the label
-     * label.add(new Konva.Tag({
-     *   fill: '#bbb',
-     *   stroke: '#333',
-     *   shadowColor: 'black',
-     *   shadowBlur: 10,
-     *   shadowOffset: [10, 10],
-     *   shadowOpacity: 0.2,
-     *   lineJoin: 'round',
-     *   pointerDirection: 'up',
-     *   pointerWidth: 20,
-     *   pointerHeight: 20,
-     *   cornerRadius: 5
-     * }));
-     *
-     * // add text to the label
-     * label.add(new Konva.Text({
-     *   text: 'Hello World!',
-     *   fontSize: 50,
-     *   lineHeight: 1.2,
-     *   padding: 10,
-     *   fill: 'green'
-     *  }));
-     */
+   * @example
+   * // create label
+   * var label = new Konva.Label({
+   *   x: 100,
+   *   y: 100,
+   *   draggable: true
+   * });
+   *
+   * // add a tag to the label
+   * label.add(new Konva.Tag({
+   *   fill: '#bbb',
+   *   stroke: '#333',
+   *   shadowColor: 'black',
+   *   shadowBlur: 10,
+   *   shadowOffset: [10, 10],
+   *   shadowOpacity: 0.2,
+   *   lineJoin: 'round',
+   *   pointerDirection: 'up',
+   *   pointerWidth: 20,
+   *   pointerHeight: 20,
+   *   cornerRadius: 5
+   * }));
+   *
+   * // add text to the label
+   * label.add(new Konva.Text({
+   *   text: 'Hello World!',
+   *   fontSize: 50,
+   *   lineHeight: 1.2,
+   *   padding: 10,
+   *   fill: 'green'
+   *  }));
+   */
   Konva.Label = function(config) {
     this.____init(config);
   };
@@ -17938,27 +18848,28 @@
       });
     },
     /**
-         * get Text shape for the label.  You need to access the Text shape in order to update
-         * the text properties
-         * @name getText
-         * @method
-         * @memberof Konva.Label.prototype
-         */
+     * get Text shape for the label.  You need to access the Text shape in order to update
+     * the text properties
+     * @name getText
+     * @method
+     * @memberof Konva.Label.prototype
+     */
     getText: function() {
       return this.find('Text')[0];
     },
     /**
-         * get Tag shape for the label.  You need to access the Tag shape in order to update
-         * the pointer properties and the corner radius
-         * @name getTag
-         * @method
-         * @memberof Konva.Label.prototype
-         */
+     * get Tag shape for the label.  You need to access the Tag shape in order to update
+     * the pointer properties and the corner radius
+     * @name getTag
+     * @method
+     * @memberof Konva.Label.prototype
+     */
     getTag: function() {
       return this.find('Tag')[0];
     },
     _addListeners: function(text) {
-      var that = this, n;
+      var that = this,
+        n;
       var func = function() {
         that._sync();
       };
@@ -18033,17 +18944,17 @@
   Konva.Collection.mapMethods(Konva.Label);
 
   /**
-     * Tag constructor.&nbsp; A Tag can be configured
-     *  to have a pointer element that points up, right, down, or left
-     * @constructor
-     * @memberof Konva
-     * @param {Object} config
-     * @param {String} [config.pointerDirection] can be up, right, down, left, or none; the default
-     *  is none.  When a pointer is present, the positioning of the label is relative to the tip of the pointer.
-     * @param {Number} [config.pointerWidth]
-     * @param {Number} [config.pointerHeight]
-     * @param {Number} [config.cornerRadius]
-     */
+   * Tag constructor.&nbsp; A Tag can be configured
+   *  to have a pointer element that points up, right, down, or left
+   * @constructor
+   * @memberof Konva
+   * @param {Object} config
+   * @param {String} [config.pointerDirection] can be up, right, down, left, or none; the default
+   *  is none.  When a pointer is present, the positioning of the label is relative to the tip of the pointer.
+   * @param {Number} [config.pointerWidth]
+   * @param {Number} [config.pointerHeight]
+   * @param {Number} [config.cornerRadius]
+   */
   Konva.Tag = function(config) {
     this.___init(config);
   };
@@ -18184,71 +19095,86 @@
   Konva.Factory.addGetterSetter(Konva.Tag, 'pointerDirection', NONE);
 
   /**
-     * set pointer Direction
-     * @name setPointerDirection
-     * @method
-     * @memberof Konva.Tag.prototype
-     * @param {String} pointerDirection can be up, right, down, left, or none.  The
-     *  default is none
-     */
+   * set pointer Direction
+   * @name setPointerDirection
+   * @method
+   * @memberof Konva.Tag.prototype
+   * @param {String} pointerDirection can be up, right, down, left, or none.  The
+   *  default is none
+   */
 
   /**
-     * get pointer Direction
-     * @name getPointerDirection
-     * @method
-     * @memberof Konva.Tag.prototype
-     */
+   * get pointer Direction
+   * @name getPointerDirection
+   * @method
+   * @memberof Konva.Tag.prototype
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Tag, 'pointerWidth', 0);
-
-  /**
-     * set pointer width
-     * @name setPointerWidth
-     * @method
-     * @memberof Konva.Tag.prototype
-     * @param {Number} pointerWidth
-     */
+  Konva.Factory.addGetterSetter(
+    Konva.Tag,
+    'pointerWidth',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get pointer width
-     * @name getPointerWidth
-     * @method
-     * @memberof Konva.Tag.prototype
-     */
-
-  Konva.Factory.addGetterSetter(Konva.Tag, 'pointerHeight', 0);
-
-  /**
-     * set pointer height
-     * @name setPointerHeight
-     * @method
-     * @memberof Konva.Tag.prototype
-     * @param {Number} pointerHeight
-     */
+   * set pointer width
+   * @name setPointerWidth
+   * @method
+   * @memberof Konva.Tag.prototype
+   * @param {Number} pointerWidth
+   */
 
   /**
-     * get pointer height
-     * @name getPointerHeight
-     * @method
-     * @memberof Konva.Tag.prototype
-     */
+   * get pointer width
+   * @name getPointerWidth
+   * @method
+   * @memberof Konva.Tag.prototype
+   */
 
-  Konva.Factory.addGetterSetter(Konva.Tag, 'cornerRadius', 0);
-
-  /**
-     * set corner radius
-     * @name setCornerRadius
-     * @method
-     * @memberof Konva.Tag.prototype
-     * @param {Number} corner radius
-     */
+  Konva.Factory.addGetterSetter(
+    Konva.Tag,
+    'pointerHeight',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
-     * get corner radius
-     * @name getCornerRadius
-     * @method
-     * @memberof Konva.Tag.prototype
-     */
+   * set pointer height
+   * @name setPointerHeight
+   * @method
+   * @memberof Konva.Tag.prototype
+   * @param {Number} pointerHeight
+   */
+
+  /**
+   * get pointer height
+   * @name getPointerHeight
+   * @method
+   * @memberof Konva.Tag.prototype
+   */
+
+  Konva.Factory.addGetterSetter(
+    Konva.Tag,
+    'cornerRadius',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * set corner radius
+   * @name setCornerRadius
+   * @method
+   * @memberof Konva.Tag.prototype
+   * @param {Number} corner radius
+   */
+
+  /**
+   * get corner radius
+   * @name getCornerRadius
+   * @method
+   * @memberof Konva.Tag.prototype
+   */
 
   Konva.Collection.mapMethods(Konva.Tag);
 })();
@@ -18361,9 +19287,24 @@
       Konva.Line.prototype._sceneFunc.apply(this, arguments);
       var PI2 = Math.PI * 2;
       var points = this.points();
+
+      var tp = points;
+      var fromTension = this.getTension() !== 0 && points.length > 4;
+      if (fromTension) {
+        tp = this.getTensionPoints();
+      }
+
       var n = points.length;
-      var dx = points[n - 2] - points[n - 4];
-      var dy = points[n - 1] - points[n - 3];
+
+      var dx, dy;
+      if (fromTension) {
+        dx = points[n - 2] - tp[n - 2];
+        dy = points[n - 1] - tp[n - 1];
+      } else {
+        dx = points[n - 2] - points[n - 4];
+        dy = points[n - 1] - points[n - 3];
+      }
+
       var radians = (Math.atan2(dy, dx) + PI2) % PI2;
       var length = this.pointerLength();
       var width = this.pointerWidth();
@@ -18381,8 +19322,14 @@
       if (this.pointerAtBeginning()) {
         ctx.save();
         ctx.translate(points[0], points[1]);
-        dx = points[2] - points[0];
-        dy = points[3] - points[1];
+        if (fromTension) {
+          dx = tp[0] - points[0];
+          dy = tp[1] - points[1];
+        } else {
+          dx = points[2] - points[0];
+          dy = points[3] - points[1];
+        }
+
         ctx.rotate((Math.atan2(-dy, -dx) + PI2) % PI2);
         ctx.moveTo(0, 0);
         ctx.lineTo(-length, width / 2);
@@ -18390,7 +19337,24 @@
         ctx.closePath();
         ctx.restore();
       }
+
+      // here is a tricky part
+      // we need to disable dash for arrow pointers
+      var isDashEnabled = this.dashEnabled();
+      if (isDashEnabled) {
+        // manually disable dash for head
+        // it is better not to use setter here,
+        // because it will trigger attr change event
+        this.attrs.dashEnabled = false;
+        ctx.setLineDash([]);
+      }
+
       ctx.fillStrokeShape(this);
+
+      // restore old value
+      if (isDashEnabled) {
+        this.attrs.dashEnabled = true;
+      }
     }
   };
 
@@ -18411,7 +19375,12 @@
    * line.pointerLength(15);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Arrow, 'pointerLength', 10);
+  Konva.Factory.addGetterSetter(
+    Konva.Arrow,
+    'pointerLength',
+    10,
+    Konva.Validators.getNumberValidator()
+  );
   /**
    * get/set pointerWidth
    * @name pointerWidth
@@ -18428,7 +19397,12 @@
    * line.pointerWidth(15);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Arrow, 'pointerWidth', 10);
+  Konva.Factory.addGetterSetter(
+    Konva.Arrow,
+    'pointerWidth',
+    10,
+    Konva.Validators.getNumberValidator()
+  );
   /**
    * get/set pointerAtBeginning
    * @name pointerAtBeginning
@@ -18454,8 +19428,18 @@
 
   var ATTR_CHANGE_LIST = [
     'resizeEnabledChange',
-    'rotateHandlerOffsetChange'
+    'rotateAnchorOffsetChange',
+    'enabledAnchorsChange',
+    'anchorSizeChange',
+    'borderEnabledChange',
+    'borderStrokeChange',
+    'borderStrokeWidthChange',
+    'anchorStrokeChange',
+    'anchorStrokeWidthChange',
+    'anchorFillChange'
   ].join(' ');
+
+  var NODE_RECT = 'nodeRect';
 
   var TRANSFORM_CHANGE_STR = [
     'xChange.resizer',
@@ -18472,25 +19456,41 @@
     'transformsEnabledChange.resizer'
   ].join(' ');
 
-  function getCursor(anchorName, rad) {
+  var REDRAW_CHANGE_STR = [
+    'widthChange.resizer',
+    'heightChange.resizer',
+    'scaleXChange.resizer',
+    'scaleYChange.resizer',
+    'skewXChange.resizer',
+    'skewYChange.resizer',
+    'rotationChange.resizer',
+    'offsetXChange.resizer',
+    'offsetYChange.resizer'
+  ].join(' ');
+
+  var ANGLES = {
+    'top-left': -45,
+    'top-center': 0,
+    'top-right': 45,
+    'middle-right': -90,
+    'middle-left': 90,
+    'bottom-left': -135,
+    'bottom-center': 180,
+    'bottom-right': 135
+  };
+
+  function getCursor(anchorName, rad, isMirrored) {
     if (anchorName === 'rotater') {
       return 'crosshair';
     }
 
-    var angle;
-    if (anchorName === 'top-left' || anchorName === 'bottom-right') {
-      angle = -45;
-    } else if (anchorName === 'top-right' || anchorName === 'bottom-left') {
-      angle = 45;
-    } else if (anchorName === 'top-center' || anchorName === 'bottom-center') {
-      angle = 0;
-    } else if (anchorName === 'middle-left' || anchorName === 'middle-right') {
-      angle = 90;
-    } else {
-      angle = 0;
+    rad += Konva.Util._degToRad(ANGLES[anchorName] || 0);
+    // If we are mirrored, we need to mirror the angle (this is not the same as
+    // rotate).
+    if (isMirrored) {
+      rad *= -1;
     }
-
-    angle = (angle + Konva.Util._radToDeg(rad) + 360) % 360;
+    var angle = (Konva.Util._radToDeg(rad) % 360 + 360) % 360;
 
     if (
       Konva.Util._inRange(angle, 315 + 22.5, 360) ||
@@ -18522,15 +19522,50 @@
     } else {
       // how can we can there?
       // TODO: throw error
+      Konva.Util.error(
+        'Transformer has unknown angle for cursor detection: ' + angle
+      );
       return 'pointer';
     }
   }
+
+  /**
+   * Transformer constructor.  Transformer is a special type of group that allow you transform Konva
+   * primitives and shapes. Transforming tool is not changing `width` and `height` properties of nodes
+   * when you resize them. Instead it changes `scaleX` and `scaleY` properties.
+   * @constructor
+   * @memberof Konva
+   * @param {Object} config
+   * @param {Boolean} [config.resizeEnabled] Default is true
+   * @param {Boolean} [config.rotateEnabled] Default is true
+   * @param {Array} [config.rotationSnaps] Array of angles for rotation snaps. Default is []
+   * @param {Number} [config.rotateAnchorOffset] Default is 50
+   * @param {Number} [config.padding] Default is 0
+   * @param {Boolean} [config.borderEnabled] Should we draw border? Default is true
+   * @param {String} [config.borderStroke] Border stroke color
+   * @param {Number} [config.borderStrokeWidth] Border stroke size
+   * @param {Array} [config.borderDash] Array for border dash.
+   * @param {String} [config.anchorFill] Anchor fill color
+   * @param {String} [config.anchorStroke] Anchor stroke color
+   * @param {Number} [config.anchorStrokeWidth] Anchor stroke size
+   * @param {Number} [config.anchorSize] Default is 10
+   * @param {Boolean} [config.keepRatio] Should we keep ratio when we are moving edges? Default is true
+   * @param {Array} [config.enabledAnchors] Array of names of enabled handles
+   * @param {Function} [config.boundBoxFunc] Bounding box function
+   * @example
+   * var transformer = new Konva.Transformer({
+   *   node: rectangle,
+   *   rotateAnchorOffset: 60,
+   *   enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+   * });
+   * layer.add(transformer);
+   */
 
   Konva.Transformer = function(config) {
     this.____init(config);
   };
 
-  var RESIZERS_NAMES = [
+  var ANCHORS_NAMES = [
     'top-left',
     'top-center',
     'top-right',
@@ -18541,8 +19576,6 @@
     'bottom-right'
   ];
 
-  var warningShowed = false;
-
   Konva.Transformer.prototype = {
     _centroid: false,
     ____init: function(config) {
@@ -18552,43 +19585,109 @@
       this._createElements();
 
       // bindings
-      this.handleMouseMove = this.handleMouseMove.bind(this);
-      this.handleMouseUp = this.handleMouseUp.bind(this);
+      this._handleMouseMove = this._handleMouseMove.bind(this);
+      this._handleMouseUp = this._handleMouseUp.bind(this);
       this.update = this.update.bind(this);
 
       // update transformer data for certain attr changes
       this.on(ATTR_CHANGE_LIST, this.update);
 
-      if (!warningShowed) {
-        Konva.Util.warn(
-          'Konva.Transformer is currently experimental and may have bugs. Please report any issues to GitHub repo.'
-        );
-        warningShowed = true;
+      if (this.getNode()) {
+        this.update();
       }
     },
 
+    /**
+     * alias to `setNode`
+     * @method
+     * @memberof Konva.Transformer.prototype
+     * @returns {Konva.Transformer}
+     * @example
+     * transformer.attachTo(shape);
+     */
     attachTo: function(node) {
-      if (this.node()) {
+      this.setNode(node);
+    },
+
+    /**
+     * attach transformer to a Konva.Node. Transformer will adapt to its size and listen its events
+     * @method
+     * @memberof Konva.Transformer.prototype
+     * @returns {Konva.Transformer}
+     * @example
+     * transformer.setNode(shape);
+     */
+    setNode: function(node) {
+      if (this._node) {
         this.detach();
       }
-      this.setNode(node);
-      node.on('dragmove.resizer', this.update);
-      node.on(TRANSFORM_CHANGE_STR, this.update);
+      this._node = node;
+      this._resetTransformCache();
 
-      this.update();
+      node.on(TRANSFORM_CHANGE_STR, this._resetTransformCache.bind(this));
+      node.on(
+        REDRAW_CHANGE_STR,
+        function() {
+          if (!this._transforming) {
+            this.update();
+          }
+        }.bind(this)
+      );
+
+      // TODO: why do we need this?
+      var elementsCreated = !!this.findOne('.top-left');
+      if (elementsCreated) {
+        this.update();
+      }
+      return this;
     },
 
+    getNode: function() {
+      return this._node;
+    },
+
+    /**
+     * detach transformer from a attached node
+     * @method
+     * @memberof Konva.Transformer.prototype
+     * @returns {Konva.Transformer}
+     * @example
+     * transformer.detach();
+     */
     detach: function() {
-      this.getNode().off('.resizer');
+      if (this.getNode()) {
+        this.getNode().off('.resizer');
+        this._node = undefined;
+      }
+      this._resetTransformCache();
+    },
+
+    _resetTransformCache: function() {
+      this._clearCache(NODE_RECT);
+      this._clearCache('transform');
+      this._clearSelfAndDescendantCache('absoluteTransform');
     },
 
     _getNodeRect: function() {
+      return this._getCache(NODE_RECT, this.__getNodeRect);
+    },
+
+    __getNodeRect: function() {
       var node = this.getNode();
+      if (!node) {
+        return {
+          x: -Number.MAX_SAFE_INTEGER,
+          y: -Number.MAX_SAFE_INTEGER,
+          width: 0,
+          height: 0,
+          rotation: 0
+        };
+      }
       var rect = node.getClientRect({ skipTransform: true });
       var rotation = Konva.getAngle(node.rotation());
 
-      var dx = rect.x * node.scaleX() - node.offsetX();
-      var dy = rect.y * node.scaleY() - node.offsetY();
+      var dx = rect.x * node.scaleX() - node.offsetX() * node.scaleX();
+      var dy = rect.y * node.scaleY() - node.offsetY() * node.scaleY();
 
       return {
         x: node.x() + dx * Math.cos(rotation) + dy * Math.sin(-rotation),
@@ -18622,7 +19721,7 @@
     _createElements: function() {
       this._createBack();
 
-      RESIZERS_NAMES.forEach(
+      ANCHORS_NAMES.forEach(
         function(name) {
           this._createAnchor(name);
         }.bind(this)
@@ -18636,26 +19735,36 @@
         stroke: 'rgb(0, 161, 255)',
         fill: 'white',
         strokeWidth: 1,
-        name: name,
-        width: 10,
-        height: 10,
-        offsetX: 5,
-        offsetY: 5,
-        draggable: true,
-        dragDistance: 0
+        name: name + ' _anchor',
+        dragDistance: 0,
+        draggable: true
       });
       var self = this;
       anchor.on('mousedown touchstart', function(e) {
-        self.handleResizerMouseDown(e);
+        self._handleMouseDown(e);
+      });
+      anchor.on('dragstart', function(e) {
+        e.cancelBubble = true;
+      });
+      anchor.on('dragmove', function(e) {
+        e.cancelBubble = true;
+      });
+      anchor.on('dragend', function(e) {
+        e.cancelBubble = true;
       });
 
       // add hover styling
       anchor.on('mouseenter', function() {
         var layer = this.getLayer();
-        var rad = Konva.getAngle(this.getParent().rotation());
-        var cursor = getCursor(name, rad);
-        anchor.getStage().getContainer().style.cursor = cursor;
-        this.fill('lightgrey');
+        var tr = this.getParent();
+
+        var rad = Konva.getAngle(tr.rotation());
+
+        var scale = tr.getNode().getAbsoluteScale();
+        // If scale.y < 0 xor scale.x < 0 we need to flip (not rotate).
+        var isMirrored = scale.y * scale.x < 0;
+        var cursor = getCursor(name, rad, isMirrored);
+        anchor.getStage().content.style.cursor = cursor;
         layer.batchDraw();
       });
       anchor.on('mouseout', function() {
@@ -18663,8 +19772,7 @@
         if (!layer) {
           return;
         }
-        anchor.getStage().getContainer().style.cursor = '';
-        this.fill('white');
+        anchor.getStage().content.style.cursor = '';
         layer.batchDraw();
       });
       this.add(anchor);
@@ -18672,19 +19780,25 @@
 
     _createBack: function() {
       var back = new Konva.Shape({
-        stroke: 'rgb(0, 161, 255)',
         name: 'back',
         width: 0,
         height: 0,
         listening: false,
         sceneFunc: function(ctx) {
+          var tr = this.getParent();
+          var padding = tr.getPadding();
           ctx.beginPath();
-          ctx.rect(0, 0, this.width(), this.height());
-          ctx.moveTo(this.width() / 2, 0);
-          if (this.getParent().rotateEnabled()) {
+          ctx.rect(
+            -padding,
+            -padding,
+            this.width() + padding * 2,
+            this.height() + padding * 2
+          );
+          ctx.moveTo(this.width() / 2, -padding);
+          if (tr.rotateEnabled()) {
             ctx.lineTo(
               this.width() / 2,
-              -this.getParent().rotateHandlerOffset()
+              -tr.rotateAnchorOffset() * Konva.Util._sign(this.height())
             );
           }
 
@@ -18694,8 +19808,8 @@
       this.add(back);
     },
 
-    handleResizerMouseDown: function(e) {
-      this.movingResizer = e.target.name();
+    _handleMouseDown: function(e) {
+      this.movingResizer = e.target.name().split(' ')[0];
 
       // var node = this.getNode();
       var attrs = this._getNodeRect();
@@ -18705,18 +19819,18 @@
       this.sin = height / hypotenuse;
       this.cos = width / hypotenuse;
 
-      window.addEventListener('mousemove', this.handleMouseMove);
-      window.addEventListener('touchmove', this.handleMouseMove);
-      window.addEventListener('mouseup', this.handleMouseUp);
-      window.addEventListener('touchend', this.handleMouseUp);
+      window.addEventListener('mousemove', this._handleMouseMove);
+      window.addEventListener('touchmove', this._handleMouseMove);
+      window.addEventListener('mouseup', this._handleMouseUp, true);
+      window.addEventListener('touchend', this._handleMouseUp, true);
 
       this._transforming = true;
 
-      this.fire('transformstart');
-      this.getNode().fire('transformstart');
+      this._fire('transformstart', { evt: e });
+      this.getNode()._fire('transformstart', { evt: e });
     },
 
-    handleMouseMove: function(e) {
+    _handleMouseMove: function(e) {
       var x, y, newHypotenuse;
       var resizerNode = this.findOne('.' + this.movingResizer);
       var stage = resizerNode.getStage();
@@ -18737,30 +19851,36 @@
 
       resizerNode.setAbsolutePosition(newAbsPos);
 
+      var keepProportion = this.keepRatio() || e.shiftKey;
+
       if (this.movingResizer === 'top-left') {
-        newHypotenuse = Math.sqrt(
-          Math.pow(this.findOne('.bottom-right').x() - resizerNode.x(), 2) +
-            Math.pow(this.findOne('.bottom-right').y() - resizerNode.y(), 2)
-        );
+        if (keepProportion) {
+          newHypotenuse = Math.sqrt(
+            Math.pow(this.findOne('.bottom-right').x() - resizerNode.x(), 2) +
+              Math.pow(this.findOne('.bottom-right').y() - resizerNode.y(), 2)
+          );
 
-        x = newHypotenuse * this.cos;
-        y = newHypotenuse * this.sin;
+          x = newHypotenuse * this.cos;
+          y = newHypotenuse * this.sin;
 
-        this.findOne('.top-left').x(this.findOne('.bottom-right').x() - x);
-        this.findOne('.top-left').y(this.findOne('.bottom-right').y() - y);
+          this.findOne('.top-left').x(this.findOne('.bottom-right').x() - x);
+          this.findOne('.top-left').y(this.findOne('.bottom-right').y() - y);
+        }
       } else if (this.movingResizer === 'top-center') {
         this.findOne('.top-left').y(resizerNode.y());
       } else if (this.movingResizer === 'top-right') {
-        newHypotenuse = Math.sqrt(
-          Math.pow(this.findOne('.bottom-left').x() - resizerNode.x(), 2) +
-            Math.pow(this.findOne('.bottom-left').y() - resizerNode.y(), 2)
-        );
+        if (keepProportion) {
+          newHypotenuse = Math.sqrt(
+            Math.pow(this.findOne('.bottom-left').x() - resizerNode.x(), 2) +
+              Math.pow(this.findOne('.bottom-left').y() - resizerNode.y(), 2)
+          );
 
-        x = newHypotenuse * this.cos;
-        y = newHypotenuse * this.sin;
+          x = newHypotenuse * this.cos;
+          y = newHypotenuse * this.sin;
 
-        this.findOne('.top-right').x(x);
-        this.findOne('.top-right').y(this.findOne('.bottom-left').y() - y);
+          this.findOne('.top-right').x(x);
+          this.findOne('.top-right').y(this.findOne('.bottom-left').y() - y);
+        }
         var pos = resizerNode.position();
 
         this.findOne('.top-left').y(pos.y);
@@ -18770,16 +19890,18 @@
       } else if (this.movingResizer === 'middle-right') {
         this.findOne('.bottom-right').x(resizerNode.x());
       } else if (this.movingResizer === 'bottom-left') {
-        newHypotenuse = Math.sqrt(
-          Math.pow(this.findOne('.top-right').x() - resizerNode.x(), 2) +
-            Math.pow(this.findOne('.top-right').y() - resizerNode.y(), 2)
-        );
+        if (keepProportion) {
+          newHypotenuse = Math.sqrt(
+            Math.pow(this.findOne('.top-right').x() - resizerNode.x(), 2) +
+              Math.pow(this.findOne('.top-right').y() - resizerNode.y(), 2)
+          );
 
-        x = newHypotenuse * this.cos;
-        y = newHypotenuse * this.sin;
+          x = newHypotenuse * this.cos;
+          y = newHypotenuse * this.sin;
 
-        this.findOne('.bottom-left').x(this.findOne('.top-right').x() - x);
-        this.findOne('.bottom-left').y(y);
+          this.findOne('.bottom-left').x(this.findOne('.top-right').x() - x);
+          this.findOne('.bottom-left').y(y);
+        }
 
         pos = resizerNode.position();
 
@@ -18788,23 +19910,29 @@
       } else if (this.movingResizer === 'bottom-center') {
         this.findOne('.bottom-right').y(resizerNode.y());
       } else if (this.movingResizer === 'bottom-right') {
-        newHypotenuse = Math.sqrt(
-          Math.pow(this.findOne('.bottom-right').x(), 2) +
-            Math.pow(this.findOne('.bottom-right').y(), 2)
-        );
+        if (keepProportion) {
+          newHypotenuse = Math.sqrt(
+            Math.pow(this.findOne('.bottom-right').x(), 2) +
+              Math.pow(this.findOne('.bottom-right').y(), 2)
+          );
 
-        x = newHypotenuse * this.cos;
-        y = newHypotenuse * this.sin;
+          x = newHypotenuse * this.cos;
+          y = newHypotenuse * this.sin;
 
-        this.findOne('.bottom-right').x(x);
-        this.findOne('.bottom-right').y(y);
+          this.findOne('.bottom-right').x(x);
+          this.findOne('.bottom-right').y(y);
+        }
       } else if (this.movingResizer === 'rotater') {
+        var padding = this.getPadding();
         var attrs = this._getNodeRect();
         x = resizerNode.x() - attrs.width / 2;
         y = -resizerNode.y() + attrs.height / 2;
 
         var dAlpha = Math.atan2(-y, x) + Math.PI / 2;
-        // var attrs = this._getAttrs();
+
+        if (attrs.height < 0) {
+          dAlpha -= Math.PI;
+        }
 
         var rot = Konva.getAngle(this.rotation());
 
@@ -18828,22 +19956,32 @@
           }
         }
 
+        var dx = padding;
+        var dy = padding;
+
         this._fitNodeInto(
-          Object.assign(attrs, {
+          {
             rotation: Konva.angleDeg
               ? newRotation
               : Konva.Util._degToRad(newRotation),
             x:
               attrs.x +
-              attrs.width / 2 * (Math.cos(alpha) - Math.cos(newAlpha)) +
-              attrs.height / 2 * (Math.sin(-alpha) - Math.sin(-newAlpha)),
+              (attrs.width / 2 + padding) *
+                (Math.cos(alpha) - Math.cos(newAlpha)) +
+              (attrs.height / 2 + padding) *
+                (Math.sin(-alpha) - Math.sin(-newAlpha)) -
+              (dx * Math.cos(rot) + dy * Math.sin(-rot)),
             y:
               attrs.y +
-              attrs.height / 2 * (Math.cos(alpha) - Math.cos(newAlpha)) +
-              attrs.width / 2 * (Math.sin(alpha) - Math.sin(newAlpha)),
-            width: attrs.width,
-            height: attrs.height
-          })
+              (attrs.height / 2 + padding) *
+                (Math.cos(alpha) - Math.cos(newAlpha)) +
+              (attrs.width / 2 + padding) *
+                (Math.sin(alpha) - Math.sin(newAlpha)) -
+              (dy * Math.cos(rot) + dx * Math.sin(rot)),
+            width: attrs.width + padding * 2,
+            height: attrs.height + padding * 2
+          },
+          e
         );
       } else {
         console.error(
@@ -18862,6 +20000,28 @@
         this.getParent()
       );
 
+      if (e.altKey) {
+        var topLeft = this.findOne('.top-left');
+        var bottomRight = this.findOne('.bottom-right');
+        var topOffsetX = topLeft.x();
+        var topOffsetY = topLeft.y();
+
+        var bottomOffsetX = this.getWidth() - bottomRight.x();
+        var bottomOffsetY = this.getHeight() - bottomRight.y();
+
+        bottomRight.move({
+          x: -topOffsetX,
+          y: -topOffsetY
+        });
+
+        topLeft.move({
+          x: bottomOffsetX,
+          y: bottomOffsetY
+        });
+
+        absPos = topLeft.getAbsolutePosition(this.getParent());
+      }
+
       x = absPos.x;
       y = absPos.y;
       var width =
@@ -18870,170 +20030,538 @@
       var height =
         this.findOne('.bottom-right').y() - this.findOne('.top-left').y();
 
-      this._fitNodeInto({
-        x: x + this.offsetX(),
-        y: y + this.offsetY(),
-        width: width,
-        height: height
-      });
+      this._fitNodeInto(
+        {
+          x: x + this.offsetX(),
+          y: y + this.offsetY(),
+          width: width,
+          height: height
+        },
+        e
+      );
     },
 
-    handleMouseUp: function() {
-      this._removeEvents();
+    _handleMouseUp: function(e) {
+      this._removeEvents(e);
     },
 
-    _removeEvents: function() {
+    _removeEvents: function(e) {
       if (this._transforming) {
         this._transforming = false;
-        window.removeEventListener('mousemove', this.handleMouseMove);
-        window.removeEventListener('touchmove', this.handleMouseMove);
-        window.removeEventListener('mouseup', this.handleMouseUp);
-        window.removeEventListener('touchend', this.handleMouseUp);
-        this.fire('transformend');
-        this.getNode().fire('transformend');
+        window.removeEventListener('mousemove', this._handleMouseMove);
+        window.removeEventListener('touchmove', this._handleMouseMove);
+        window.removeEventListener('mouseup', this._handleMouseUp, true);
+        window.removeEventListener('touchend', this._handleMouseUp, true);
+        this._fire('transformend', { evt: e });
+        var node = this.getNode();
+        if (node) {
+          node.fire('transformend', { evt: e });
+        }
       }
     },
 
-    _fitNodeInto: function(attrs) {
+    _fitNodeInto: function(newAttrs, evt) {
+      // waring! in this attrs padding may be included
+      var boundBoxFunc = this.getBoundBoxFunc();
+      if (boundBoxFunc) {
+        var oldAttrs = this._getNodeRect();
+        newAttrs = boundBoxFunc.call(this, oldAttrs, newAttrs);
+      }
       this._settings = true;
       var node = this.getNode();
-      if (attrs.rotation !== undefined) {
-        this.getNode().rotation(attrs.rotation);
+      if (newAttrs.rotation !== undefined) {
+        this.getNode().rotation(newAttrs.rotation);
       }
       var pure = node.getClientRect({ skipTransform: true });
-      var scaleX = attrs.width / pure.width;
-      var scaleY = attrs.height / pure.height;
+      var padding = this.getPadding();
+      var scaleX = (newAttrs.width - padding * 2) / pure.width;
+      var scaleY = (newAttrs.height - padding * 2) / pure.height;
 
       var rotation = Konva.getAngle(node.getRotation());
-      // debugger;
-      var dx = pure.x * scaleX;
-      var dy = pure.y * scaleY;
-
-      // var dxo = node.offsetX() * scaleX;
-      // var dyo = node.offsetY() * scaleY;
+      var dx = pure.x * scaleX - padding - node.offsetX() * scaleX;
+      var dy = pure.y * scaleY - padding - node.offsetY() * scaleY;
 
       this.getNode().setAttrs({
         scaleX: scaleX,
         scaleY: scaleY,
-        x: attrs.x - (dx * Math.cos(rotation) + dy * Math.sin(-rotation)),
-        y: attrs.y - (dy * Math.cos(rotation) + dx * Math.sin(rotation))
+        x: newAttrs.x - (dx * Math.cos(rotation) + dy * Math.sin(-rotation)),
+        y: newAttrs.y - (dy * Math.cos(rotation) + dx * Math.sin(rotation))
       });
       this._settings = false;
 
-      this.fire('transform');
-      this.getNode().fire('transform');
+      this._fire('transform', { evt: evt });
+      this.getNode()._fire('transform', { evt: evt });
       this.update();
       this.getLayer().batchDraw();
     },
+    /**
+     * force update of Konva.Transformer.
+     * Use it when you updated attached Konva.Group and now you need to reset transformer size
+     * @method
+     * @memberof Konva.Transformer.prototype
+     */
+    forceUpdate: function() {
+      this._resetTransformCache();
+      this.update();
+    },
     update: function() {
       var attrs = this._getNodeRect();
-      var x = attrs.x;
-      var y = attrs.y;
+      var node = this.getNode();
+      var scale = { x: 1, y: 1 };
+      if (node && node.getParent()) {
+        scale = node.getParent().getAbsoluteScale();
+      }
+      var invertedScale = {
+        x: 1 / scale.x,
+        y: 1 / scale.y
+      };
       var width = attrs.width;
       var height = attrs.height;
-      this.x(x);
-      this.y(y);
-      this.rotation(attrs.rotation);
 
-      var enabledResizers = this.enabledResizers();
+      var enabledAnchors = this.enabledAnchors();
       var resizeEnabled = this.resizeEnabled();
+      var padding = this.getPadding();
+
+      var anchorSize = this.getAnchorSize();
+      this.find('._anchor').setAttrs({
+        width: anchorSize,
+        height: anchorSize,
+        offsetX: anchorSize / 2,
+        offsetY: anchorSize / 2,
+        stroke: this.getAnchorStroke(),
+        strokeWidth: this.getAnchorStrokeWidth(),
+        fill: this.getAnchorFill()
+      });
 
       this.findOne('.top-left').setAttrs({
-        x: 0,
-        y: 0,
-        visible: resizeEnabled && enabledResizers.indexOf('top-left') >= 0
+        x: -padding,
+        y: -padding,
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('top-left') >= 0
       });
       this.findOne('.top-center').setAttrs({
         x: width / 2,
-        y: 0,
-        visible: resizeEnabled && enabledResizers.indexOf('top-center') >= 0
+        y: -padding,
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('top-center') >= 0
       });
       this.findOne('.top-right').setAttrs({
-        x: width,
-        y: 0,
-        visible: resizeEnabled && enabledResizers.indexOf('top-right') >= 0
+        x: width + padding,
+        y: -padding,
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('top-right') >= 0
       });
       this.findOne('.middle-left').setAttrs({
-        x: 0,
+        x: -padding,
         y: height / 2,
-        visible: resizeEnabled && enabledResizers.indexOf('middle-left') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('middle-left') >= 0
       });
       this.findOne('.middle-right').setAttrs({
-        x: width,
+        x: width + padding,
         y: height / 2,
-        visible: resizeEnabled && enabledResizers.indexOf('middle-right') >= 0
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('middle-right') >= 0
       });
       this.findOne('.bottom-left').setAttrs({
-        x: 0,
-        y: height,
-        visible: resizeEnabled && enabledResizers.indexOf('bottom-left') >= 0
+        x: -padding,
+        y: height + padding,
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('bottom-left') >= 0
       });
       this.findOne('.bottom-center').setAttrs({
         x: width / 2,
-        y: height,
-        visible: resizeEnabled && enabledResizers.indexOf('bottom-center') >= 0
+        y: height + padding,
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('bottom-center') >= 0
       });
       this.findOne('.bottom-right').setAttrs({
-        x: width,
-        y: height,
-        visible: resizeEnabled && enabledResizers.indexOf('bottom-right') >= 0
+        x: width + padding,
+        y: height + padding,
+        scale: invertedScale,
+        visible: resizeEnabled && enabledAnchors.indexOf('bottom-right') >= 0
       });
 
+      var scaledRotateAnchorOffset =
+        -this.rotateAnchorOffset() * Math.abs(invertedScale.y);
       this.findOne('.rotater').setAttrs({
         x: width / 2,
-        y: -this.rotateHandlerOffset(),
+        y: scaledRotateAnchorOffset * Konva.Util._sign(height),
+        scale: invertedScale,
         visible: this.rotateEnabled()
       });
 
       this.findOne('.back').setAttrs({
-        width: width,
-        height: height,
-        visible: this.lineEnabled()
+        width: width * scale.x,
+        height: height * scale.y,
+        scale: invertedScale,
+        visible: this.borderEnabled(),
+        stroke: this.getBorderStroke(),
+        strokeWidth: this.getBorderStrokeWidth(),
+        dash: this.getBorderDash()
       });
+    },
+    /**
+     * determine if transformer is in active transform
+     * @method
+     * @memberof Konva.Transformer.prototype
+     * @returns {Boolean}
+     */
+    isTransforming: function() {
+      return this._transforming;
+    },
+    /**
+     * Stop active transform action
+     * @method
+     * @memberof Konva.Transformer.prototype
+     * @returns {Boolean}
+     */
+    stopTransform: function() {
+      if (this._transforming) {
+        this._removeEvents();
+        var resizerNode = this.findOne('.' + this.movingResizer);
+        if (resizerNode) {
+          resizerNode.stopDrag();
+        }
+      }
     },
     destroy: function() {
       Konva.Group.prototype.destroy.call(this);
-      this.getNode().off('.resizer');
+      this.detach();
       this._removeEvents();
+    },
+    // do not work as a container
+    // we will recreate inner nodes manually
+    toObject: function() {
+      return Konva.Node.prototype.toObject.call(this);
     }
   };
   Konva.Util.extend(Konva.Transformer, Konva.Group);
 
   function validateResizers(val) {
     if (!(val instanceof Array)) {
-      Konva.Util.warn('enabledResizers value should be an array');
+      Konva.Util.warn('enabledAnchors value should be an array');
     }
     if (val instanceof Array) {
       val.forEach(function(name) {
-        if (RESIZERS_NAMES.indexOf(name) === -1) {
+        if (ANCHORS_NAMES.indexOf(name) === -1) {
           Konva.Util.warn(
-            'Unknown resizer name: ' +
+            'Unknown anchor name: ' +
               name +
               '. Available names are: ' +
-              RESIZERS_NAMES.join(', ')
+              ANCHORS_NAMES.join(', ')
           );
         }
       });
     }
     return val || [];
   }
+
+  /**
+   * get/set enabled handlers
+   * @name enabledAnchors
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Array} array
+   * @returns {Array}
+   * @example
+   * // get list of handlers
+   * var enabledAnchors = transformer.enabledAnchors();
+   *
+   * // set handlers
+   * transformer.enabledAnchors(['top-left', 'top-center', 'top-right', 'middle-right', 'middle-left', 'bottom-left', 'bottom-center', 'bottom-right']);
+   */
   Konva.Factory.addGetterSetter(
     Konva.Transformer,
-    'enabledResizers',
-    RESIZERS_NAMES
-  );
-  Konva.Factory.addGetterSetter(
-    Konva.Transformer,
-    'enabledResizers',
-    RESIZERS_NAMES,
+    'enabledAnchors',
+    ANCHORS_NAMES,
     validateResizers
   );
+
+  /**
+   * get/set resize ability. If false it will automatically hide resizing handlers
+   * @name resizeEnabled
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Array} array
+   * @returns {Array}
+   * @example
+   * // get
+   * var resizeEnabled = transformer.resizeEnabled();
+   *
+   * // set
+   * transformer.resizeEnabled(false);
+   */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'resizeEnabled', true);
+  /**
+   * get/set anchor size. Default is 10
+   * @name validateAnchors
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Number} 10
+   * @returns {Number}
+   * @example
+   * // get
+   * var anchorSize = transformer.anchorSize();
+   *
+   * // set
+   * transformer.anchorSize(20)
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'anchorSize',
+    10,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set ability to rotate.
+   * @name rotateEnabled
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var rotateEnabled = transformer.rotateEnabled();
+   *
+   * // set
+   * transformer.rotateEnabled(false);
+   */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'rotateEnabled', true);
+
+  /**
+   * get/set rotation snaps angles.
+   * @name rotationSnaps
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Array} array
+   * @returns {Array}
+   * @example
+   * // get
+   * var rotationSnaps = transformer.rotationSnaps();
+   *
+   * // set
+   * transformer.rotationSnaps([0, 90, 180, 270]);
+   */
   Konva.Factory.addGetterSetter(Konva.Transformer, 'rotationSnaps', []);
-  Konva.Factory.addGetterSetter(Konva.Transformer, 'rotateHandlerOffset', 50);
-  Konva.Factory.addGetterSetter(Konva.Transformer, 'lineEnabled', true);
-  Konva.Factory.addGetterSetter(Konva.Transformer, 'node');
+
+  /**
+   * get/set distance for rotation handler
+   * @name rotateAnchorOffset
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Number} offset
+   * @returns {Number}
+   * @example
+   * // get
+   * var rotateAnchorOffset = transformer.rotateAnchorOffset();
+   *
+   * // set
+   * transformer.rotateAnchorOffset(100);
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'rotateAnchorOffset',
+    50,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set visibility of border
+   * @name borderEnabled
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderEnabled = transformer.borderEnabled();
+   *
+   * // set
+   * transformer.borderEnabled(false);
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'borderEnabled', true);
+
+  /**
+   * get/set anchor stroke color
+   * @name anchorStroke
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var anchorStroke = transformer.anchorStroke();
+   *
+   * // set
+   * transformer.anchorStroke('red');
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'anchorStroke',
+    'rgb(0, 161, 255)'
+  );
+
+  /**
+   * get/set anchor stroke width
+   * @name anchorStrokeWidth
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var anchorStrokeWidth = transformer.anchorStrokeWidth();
+   *
+   * // set
+   * transformer.anchorStrokeWidth(3);
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'anchorStrokeWidth',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set anchor fill color
+   * @name anchorFill
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var anchorFill = transformer.anchorFill();
+   *
+   * // set
+   * transformer.anchorFill('red');
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'anchorFill', 'white');
+
+  /**
+   * get/set border stroke color
+   * @name borderStroke
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderStroke = transformer.borderStroke();
+   *
+   * // set
+   * transformer.borderStroke('red');
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'borderStroke',
+    'rgb(0, 161, 255)'
+  );
+
+  /**
+   * get/set border stroke width
+   * @name borderStrokeWidth
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderStrokeWidth = transformer.borderStrokeWidth();
+   *
+   * // set
+   * transformer.borderStrokeWidth(3);
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'borderStrokeWidth',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
+
+  /**
+   * get/set border dash array
+   * @name borderDash
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} enabled
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var borderDash = transformer.borderDash();
+   *
+   * // set
+   * transformer.borderDash([2, 2]);
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'borderDash');
+
+  /**
+   * get/set should we keep ratio while resize anchors at corners
+   * @name keepRatio
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Boolean} keepRatio
+   * @returns {Boolean}
+   * @example
+   * // get
+   * var keepRatio = transformer.keepRatio();
+   *
+   * // set
+   * transformer.keepRatio(false);
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'keepRatio', true);
+
+  /**
+   * get/set padding
+   * @name padding
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Number} padding
+   * @returns {Number}
+   * @example
+   * // get
+   * var padding = transformer.padding();
+   *
+   * // set
+   * transformer.padding(10);
+   */
+  Konva.Factory.addGetterSetter(
+    Konva.Transformer,
+    'padding',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
+
+  Konva.Factory.addOverloadedGetterSetter(Konva.Transformer, 'node');
+
+  /**
+   * get/set bounding box function
+   * @name boundBoxFunc
+   * @method
+   * @memberof Konva.Transformer.prototype
+   * @param {Function} func
+   * @returns {Function}
+   * @example
+   * // get
+   * var boundBoxFunc = transformer.boundBoxFunc();
+   *
+   * // set
+   * transformer.boundBoxFunc(function(oldBox, newBox) {
+   *   if (newBox.width > 200) {
+   *     return oldBox;
+   *   }
+   *   return newBox;
+   * });
+   */
+  Konva.Factory.addGetterSetter(Konva.Transformer, 'boundBoxFunc');
+
+  Konva.Factory.backCompat(Konva.Transformer, {
+    lineEnabled: 'borderEnabled',
+    rotateHandlerOffset: 'rotateAnchorOffset',
+    enabledHandlers: 'enabledAnchors'
+  });
 
   Konva.Collection.mapMethods(Konva.Transformer);
 })(Konva);

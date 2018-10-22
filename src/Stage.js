@@ -232,33 +232,15 @@
     getContent: function() {
       return this.content;
     },
-    /**
-     * Creates a composite data URL
-     * @method
-     * @memberof Konva.Stage.prototype
-     * @param {Object} config
-     * @param {Function} [config.callback] function executed when the composite has completed. Deprecated as method is sync now.
-     * @param {String} [config.mimeType] can be "image/png" or "image/jpeg".
-     *  "image/png" is the default
-     * @param {Number} [config.x] x position of canvas section
-     * @param {Number} [config.y] y position of canvas section
-     * @param {Number} [config.width] width of canvas section
-     * @param {Number} [config.height] height of canvas section
-     * @param {Number} [config.quality] jpeg quality.  If using an "image/jpeg" mimeType,
-     *  you can specify the quality from 0 to 1, where 0 is very poor quality and 1
-     *  is very high quality
-     */
-    toDataURL: function(config) {
+    _toKonvaCanvas: function(config) {
       config = config || {};
 
-      var mimeType = config.mimeType || null,
-        quality = config.quality || null,
-        x = config.x || 0,
+      var x = config.x || 0,
         y = config.y || 0,
         canvas = new Konva.SceneCanvas({
           width: config.width || this.getWidth(),
           height: config.height || this.getHeight(),
-          pixelRatio: config.pixelRatio
+          pixelRatio: config.pixelRatio || 1
         }),
         _context = canvas.getContext()._context,
         layers = this.children;
@@ -268,24 +250,19 @@
       }
 
       layers.each(function(layer) {
-        var width = layer.getCanvas().getWidth();
-        var height = layer.getCanvas().getHeight();
-        var ratio = layer.getCanvas().getPixelRatio();
+        if (!layer.isVisible()) {
+          return;
+        }
+        var layerCanvas = layer._toKonvaCanvas(config);
         _context.drawImage(
-          layer.getCanvas()._canvas,
-          0,
-          0,
-          width / ratio,
-          height / ratio
+          layerCanvas._canvas,
+          x,
+          y,
+          layerCanvas.getWidth() / layerCanvas.getPixelRatio(),
+          layerCanvas.getHeight() / layerCanvas.getPixelRatio()
         );
       });
-      var src = canvas.toDataURL(mimeType, quality);
-
-      if (config.callback) {
-        config.callback(src);
-      }
-
-      return src;
+      return canvas;
     },
     /**
      * converts stage into an image.
@@ -531,9 +508,12 @@
 
       // always call preventDefault for desktop events because some browsers
       // try to drag and drop the canvas element
-      if (evt.cancelable) {
-        evt.preventDefault();
-      }
+      // TODO: if we preventDefault() it will cancel event detection outside of window
+      // but we need it for better drag&drop
+      // can we disable native drag&drop somehow differently?
+      // if (evt.cancelable) {
+      //   evt.preventDefault();
+      // }
     },
     _mouseup: function(evt) {
       // workaround for mobile IE to force touch event when unhandled pointer event elevates into a mouse event
@@ -550,15 +530,17 @@
 
         if (Konva.inDblClickWindow) {
           fireDblClick = true;
-          Konva.inDblClickWindow = false;
+          clearTimeout(this.dblTimeout);
+          // Konva.inDblClickWindow = false;
         } else if (!dd || !dd.justDragged) {
           // don't set inDblClickWindow after dragging
           Konva.inDblClickWindow = true;
+          clearTimeout(this.dblTimeout);
         } else if (dd) {
           dd.justDragged = false;
         }
 
-        setTimeout(function() {
+        this.dblTimeout = setTimeout(function() {
           Konva.inDblClickWindow = false;
         }, Konva.dblClickWindow);
 
@@ -612,6 +594,18 @@
       }
     },
     _contextmenu: function(evt) {
+      this._setPointerPosition(evt);
+      var shape = this.getIntersection(this.getPointerPosition());
+
+      if (shape && shape.isListening()) {
+        shape._fireAndBubble(CONTEXTMENU, { evt: evt });
+      } else {
+        this._fire(CONTEXTMENU, {
+          evt: evt,
+          target: this,
+          currentTarget: this
+        });
+      }
       this._fire(CONTENT_CONTEXTMENU, { evt: evt });
     },
     _touchstart: function(evt) {
@@ -645,12 +639,14 @@
 
       if (Konva.inDblClickWindow) {
         fireDblClick = true;
-        Konva.inDblClickWindow = false;
+        clearTimeout(this.dblTimeout);
+        // Konva.inDblClickWindow = false;
       } else {
         Konva.inDblClickWindow = true;
+        clearTimeout(this.dblTimeout);
       }
 
-      setTimeout(function() {
+      this.dblTimeout = setTimeout(function() {
         Konva.inDblClickWindow = false;
       }, Konva.dblClickWindow);
 
@@ -732,6 +728,12 @@
 
       if (shape && shape.isListening()) {
         shape._fireAndBubble(WHEEL, { evt: evt });
+      } else {
+        this._fire(WHEEL, {
+          evt: evt,
+          target: this,
+          currentTarget: this
+        });
       }
       this._fire(CONTENT_WHEEL, { evt: evt });
     },

@@ -14,6 +14,8 @@
     LEFT = 'left',
     TEXT = 'text',
     TEXT_UPPER = 'Text',
+    TOP = 'top',
+    BOTTOM = 'bottom',
     MIDDLE = 'middle',
     NORMAL = 'normal',
     PX_SPACE = 'px ',
@@ -30,6 +32,7 @@
       'fontVariant',
       'padding',
       'align',
+      'verticalAlign',
       'lineHeight',
       'text',
       'width',
@@ -61,6 +64,7 @@
    * @param {String} [config.fontVariant] can be normal or small-caps.  Default is normal
    * @param {String} config.text
    * @param {String} [config.align] can be left, center, or right
+   * @param {String} [config.verticalAlign] can be top, middle or bottom
    * @param {Number} [config.padding]
    * @param {Number} [config.lineHeight] default is 1
    * @param {String} [config.wrap] can be word, char, or none. Default is word
@@ -123,11 +127,13 @@
       this.hitFunc(this._hitFunc);
     },
     _sceneFunc: function(context) {
-      var p = this.getPadding(),
+      var padding = this.getPadding(),
         textHeight = this.getTextHeight(),
         lineHeightPx = this.getLineHeight() * textHeight,
         textArr = this.textArr,
         textArrLen = textArr.length,
+        verticalAlign = this.getVerticalAlign(),
+        alignY = 0,
         align = this.getAlign(),
         totalWidth = this.getWidth(),
         letterSpacing = this.getLetterSpacing(),
@@ -140,35 +146,54 @@
 
       context.setAttr('textBaseline', MIDDLE);
       context.setAttr('textAlign', LEFT);
-      context.save();
-      if (p) {
-        context.translate(p, 0);
-        context.translate(0, p + textHeight / 2);
+
+      // handle vertical alignment
+      if (verticalAlign === MIDDLE) {
+        alignY =
+          (this.getHeight() - textArrLen * lineHeightPx - padding * 2) / 2;
+      } else if (verticalAlign === BOTTOM) {
+        alignY = this.getHeight() - textArrLen * lineHeightPx - padding * 2;
+      }
+
+      if (padding) {
+        context.translate(padding, 0);
+        context.translate(0, alignY + padding + lineHeightPx / 2);
       } else {
-        context.translate(0, textHeight / 2);
+        context.translate(0, alignY + lineHeightPx / 2);
       }
 
       // draw text lines
       for (n = 0; n < textArrLen; n++) {
         var obj = textArr[n],
           text = obj.text,
-          width = obj.width;
+          width = obj.width,
+          lastLine = n !== textArrLen - 1,
+          spacesNumber,
+          oneWord,
+          lineWidth;
 
         // horizontal alignment
         context.save();
         if (align === RIGHT) {
-          context.translate(totalWidth - width - p * 2, 0);
+          context.translate(totalWidth - width - padding * 2, 0);
         } else if (align === CENTER) {
-          context.translate((totalWidth - width - p * 2) / 2, 0);
+          context.translate((totalWidth - width - padding * 2) / 2, 0);
         }
 
         if (textDecoration.indexOf('underline') !== -1) {
           context.save();
           context.beginPath();
+
           context.moveTo(0, Math.round(lineHeightPx / 2));
-          context.lineTo(Math.round(width), Math.round(lineHeightPx / 2));
+          spacesNumber = text.split(' ').length - 1;
+          oneWord = spacesNumber === 0;
+          lineWidth =
+            align === JUSTIFY && lastLine && !oneWord
+              ? totalWidth - padding * 2
+              : width;
+          context.lineTo(Math.round(lineWidth), Math.round(lineHeightPx / 2));
           // TODO: I have no idea what is real ratio
-          // just /20 looks good enough
+          // just /15 looks good enough
           context.lineWidth = fontSize / 15;
           context.strokeStyle = fill;
           context.stroke();
@@ -178,7 +203,13 @@
           context.save();
           context.beginPath();
           context.moveTo(0, 0);
-          context.lineTo(Math.round(width), 0);
+          spacesNumber = text.split(' ').length - 1;
+          oneWord = spacesNumber === 0;
+          lineWidth =
+            align === JUSTIFY && lastLine && !oneWord
+              ? totalWidth - padding * 2
+              : width;
+          context.lineTo(Math.round(lineWidth), 0);
           context.lineWidth = fontSize / 15;
           context.strokeStyle = fill;
           context.stroke();
@@ -186,13 +217,13 @@
         }
         if (letterSpacing !== 0 || align === JUSTIFY) {
           //   var words = text.split(' ');
-          var spacesNumber = text.split(' ').length - 1;
+          spacesNumber = text.split(' ').length - 1;
           for (var li = 0; li < text.length; li++) {
             var letter = text[li];
             // skip justify for the last line
             if (letter === ' ' && n !== textArrLen - 1 && align === JUSTIFY) {
               context.translate(
-                Math.floor((totalWidth - width) / spacesNumber),
+                Math.floor((totalWidth - padding * 2 - width) / spacesNumber),
                 0
               );
             }
@@ -209,9 +240,10 @@
           context.fillStrokeShape(this);
         }
         context.restore();
-        context.translate(0, lineHeightPx);
+        if (textArrLen > 1) {
+          context.translate(0, lineHeightPx);
+        }
       }
-      context.restore();
     },
     _hitFunc: function(context) {
       var width = this.getWidth(),
@@ -222,14 +254,6 @@
       context.closePath();
       context.fillStrokeShape(this);
     },
-    // _useBufferCanvas: function(caching) {
-    //     var useIt = Konva.Shape.prototype._useBufferCanvas.call(this, caching);
-    //     if (useIt) {
-    //       return true;
-    //     }
-    //     return false;
-    //     // return isFirefox && this.hasFill() && this.hasShadow();
-    // },
     setText: function(text) {
       var str = Konva.Util._isString(text) ? text : (text || '').toString();
       this._setAttr(TEXT, str);
@@ -271,7 +295,7 @@
       return this.textWidth;
     },
     /**
-     * get text height
+     * get height of one line text
      * @method
      * @memberof Konva.Text.prototype
      * @returns {Number}
@@ -352,7 +376,6 @@
         shouldAddEllipsis = this.getEllipsis() && !shouldWrap;
 
       this.textArr = [];
-      getDummyContext().save();
       getDummyContext().font = this._getContextFont();
       for (var i = 0, max = lines.length; i < max; ++i) {
         var line = lines[i];
@@ -363,14 +386,14 @@
         var lineWidth = this._getTextWidth(line);
         if (fixedWidth && lineWidth > maxWidth) {
           /*
-                     * if width is fixed and line does not fit entirely
-                     * break the line into multiple fitting lines
-                     */
+          * if width is fixed and line does not fit entirely
+          * break the line into multiple fitting lines
+          */
           while (line.length > 0) {
             /*
-                         * use binary search to find the longest substring that
-                         * that would fit in the specified width
-                         */
+            * use binary search to find the longest substring that
+            * that would fit in the specified width
+            */
             var low = 0,
               high = line.length,
               match = '',
@@ -388,17 +411,26 @@
               }
             }
             /*
-                         * 'low' is now the index of the substring end
-                         * 'match' is the substring
-                         * 'matchWidth' is the substring width in px
-                         */
+            * 'low' is now the index of the substring end
+            * 'match' is the substring
+            * 'matchWidth' is the substring width in px
+            */
             if (match) {
               // a fitting substring was found
               if (wrapAtWord) {
                 // try to find a space or dash where wrapping could be done
-                var wrapIndex =
-                  Math.max(match.lastIndexOf(SPACE), match.lastIndexOf(DASH)) +
-                  1;
+                var wrapIndex;
+                var nextChar = line[match.length];
+                var nextIsSpaceOrDash = nextChar === SPACE || nextChar === DASH;
+                if (nextIsSpaceOrDash && matchWidth <= maxWidth) {
+                  wrapIndex = match.length;
+                } else {
+                  wrapIndex =
+                    Math.max(
+                      match.lastIndexOf(SPACE),
+                      match.lastIndexOf(DASH)
+                    ) + 1;
+                }
                 if (wrapIndex > 0) {
                   // re-cut the substring found at the space/dash position
                   low = wrapIndex;
@@ -414,9 +446,9 @@
                 (fixedHeight && currentHeightPx + lineHeightPx > maxHeightPx)
               ) {
                 /*
-                                 * stop wrapping if wrapping is disabled or if adding
-                                 * one more line would overflow the fixed height
-                                 */
+                * stop wrapping if wrapping is disabled or if adding
+                * one more line would overflow the fixed height
+                */
                 break;
               }
               line = line.slice(low);
@@ -447,7 +479,6 @@
           break;
         }
       }
-      getDummyContext().restore();
       this.textHeight = fontSize;
       // var maxTextWidth = 0;
       // for(var j = 0; j < this.textArr.length; j++) {
@@ -457,6 +488,18 @@
     }
   };
   Konva.Util.extend(Konva.Text, Konva.Shape);
+
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'width',
+    Konva.Validators.getNumberOrAutoValidator()
+  );
+
+  Konva.Factory.addSetter(
+    Konva.Node,
+    'height',
+    Konva.Validators.getNumberOrAutoValidator()
+  );
 
   // add getters setters
   Konva.Factory.addGetterSetter(Konva.Text, 'fontFamily', 'Arial');
@@ -476,7 +519,12 @@
    * text.fontFamily('Arial');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'fontSize', 12);
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'fontSize',
+    12,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set font size in pixels
@@ -527,7 +575,12 @@
    * text.fontVariant('small-caps');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'padding', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'padding',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * set padding
@@ -564,7 +617,29 @@
    * text.align('right');
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'lineHeight', 1);
+  Konva.Factory.addGetterSetter(Konva.Text, 'verticalAlign', TOP);
+
+  /**
+   * get/set vertical align of text.  Can be 'top', 'middle', 'bottom'.
+   * @name verticalAlign
+   * @method
+   * @memberof Konva.Text.prototype
+   * @param {String} verticalAlign
+   * @returns {String}
+   * @example
+   * // get text vertical align
+   * var verticalAlign = text.verticalAlign();
+   *
+   * // center text
+   * text.verticalAlign('center');
+   */
+
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'lineHeight',
+    1,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * get/set line height.  The default is 1.
@@ -616,7 +691,12 @@
    * text.ellipsis(true);
    */
 
-  Konva.Factory.addGetterSetter(Konva.Text, 'letterSpacing', 0);
+  Konva.Factory.addGetterSetter(
+    Konva.Text,
+    'letterSpacing',
+    0,
+    Konva.Validators.getNumberValidator()
+  );
 
   /**
    * set letter spacing property. Default value is 0.
